@@ -10,24 +10,10 @@ import { TypewriterEffectSmooth } from '@/components/ui/typewriter-effect';
 import { BentoGrid, BentoGridItem } from '@/components/ui/bento-grid';
 import { AnimatedTooltip } from '@/components/ui/animated-tooltip';
 import { Lightbulb, Users, Rocket } from 'lucide-react'; // Icons for features
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { FadeIn } from '@/components/ui/fade-in';
 
 // --- Sub-components for a cleaner structure ---
-
-const LandingNav = () => (
-  <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-    <div className="container h-14 flex items-center justify-between">
-      <h1 className="text-xl font-bold text-indigo-600">LPU TechHub</h1>
-      <div className="space-x-2">
-        <Link href="/login">
-          <Button variant="ghost">Login</Button>
-        </Link>
-        <Link href="/register">
-          <Button>Get Started</Button>
-        </Link>
-      </div>
-    </div>
-  </header>
-);
 
 const HeroSection = () => {
     const typewriterWords = [
@@ -36,12 +22,35 @@ const HeroSection = () => {
         { text: "Create." },
         { text: "Succeed.", className: "text-indigo-500" },
     ];
+    const community = [
+        { id: 1, name: "Aarav", designation: "Full‑stack", image: "https://api.dicebear.com/7.x/thumbs/svg?seed=Aarav" },
+        { id: 2, name: "Diya", designation: "AI/ML", image: "https://api.dicebear.com/7.x/thumbs/svg?seed=Diya" },
+        { id: 3, name: "Kabir", designation: "Mobile", image: "https://api.dicebear.com/7.x/thumbs/svg?seed=Kabir" },
+        { id: 4, name: "Maya", designation: "Design", image: "https://api.dicebear.com/7.x/thumbs/svg?seed=Maya" },
+        { id: 5, name: "Zoya", designation: "Web3", image: "https://api.dicebear.com/7.x/thumbs/svg?seed=Zoya" },
+    ];
     return (
-        <section className="flex flex-col items-center justify-center text-center pt-20 pb-20">
-            <TypewriterEffectSmooth words={typewriterWords} />
-            <p className="text-lg text-muted-foreground my-8 max-w-2xl mx-auto">
-                The exclusive platform for LPU students to connect, collaborate on projects, and find mentors in the tech community.
-            </p>
+        <section className="relative flex flex-col items-center justify-center text-center pt-24 pb-24 overflow-hidden">
+            {/* Animated grid background */}
+            <div className="pointer-events-none absolute inset-0">
+                <div className="absolute inset-0 [background-size:40px_40px] [background-image:linear-gradient(to_right,rgba(148,163,184,0.15)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.15)_1px,transparent_1px)] dark:[background-image:linear-gradient(to_right,rgba(38,38,38,0.6)_1px,transparent_1px),linear-gradient(to_bottom,rgba(38,38,38,0.6)_1px,transparent_1px)]" />
+                <div className="absolute inset-0 bg-white [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)] dark:bg-black" />
+            </div>
+            <div className="relative z-10">
+                <FadeIn>
+                    <TypewriterEffectSmooth words={typewriterWords} />
+                </FadeIn>
+                <FadeIn delay={0.1}>
+                    <p className="text-lg text-muted-foreground my-8 max-w-2xl mx-auto">
+                        The exclusive platform for LPU students to connect, collaborate on projects, and find mentors in the tech community.
+                    </p>
+                </FadeIn>
+                <FadeIn delay={0.2}>
+                    <div className="mt-6 flex w-full items-center justify-center">
+                        <AnimatedTooltip items={community} />
+                    </div>
+                </FadeIn>
+            </div>
         </section>
     );
 };
@@ -55,18 +64,67 @@ const FeatureGrid = () => {
     ];
     return (
         <section className="container mx-auto px-4 pb-20">
-             <h2 className="text-center text-3xl font-bold mb-10">Everything You Need In One Place</h2>
-            <BentoGrid className="max-w-4xl mx-auto">
-            {features.map((feature, i) => (
-                <BentoGridItem
-                key={i}
-                title={feature.title}
-                description={feature.description}
-                header={<div className="flex h-16 w-16 items-center justify-center rounded-lg bg-muted">{feature.icon}</div>}
-                className={feature.className}
-                />
-            ))}
-            </BentoGrid>
+            <FadeIn>
+                <h2 className="text-center text-3xl font-bold mb-3">Everything You Need In One Place</h2>
+                <p className="mx-auto mb-8 max-w-2xl text-center text-muted-foreground">Discover peers, mentors, and real projects. Learn in public and build a portfolio employers love.</p>
+            </FadeIn>
+            <FadeIn delay={0.1}>
+                <BentoGrid className="max-w-4xl mx-auto">
+                {features.map((feature, i) => (
+                    <BentoGridItem
+                    key={i}
+                    title={feature.title}
+                    description={feature.description}
+                    header={<div className="flex h-16 w-16 items-center justify-center rounded-lg bg-muted">{feature.icon}</div>}
+                    className={feature.className}
+                    />
+                ))}
+                </BentoGrid>
+            </FadeIn>
+        </section>
+    );
+};
+
+const StatsSection = () => {
+    const stats = [
+        { label: 'Students', value: '12k+' },
+        { label: 'Projects', value: '1.8k+' },
+        { label: 'Mentors', value: '240+' },
+    ];
+    return (
+        <section className="container mx-auto px-4 pb-20">
+            <FadeIn>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    {stats.map((s) => (
+                        <Card key={s.label}>
+                            <CardHeader>
+                                <CardTitle className="text-4xl font-bold">{s.value}</CardTitle>
+                                <CardDescription>{s.label}</CardDescription>
+                            </CardHeader>
+                        </Card>
+                    ))}
+                </div>
+            </FadeIn>
+        </section>
+    );
+};
+
+const PartnersSection = () => {
+    const partners = ['Hackathons', 'GDSC', 'Mozilla', 'Devfolio', 'GitHub', 'Polygon'];
+    return (
+        <section className="container mx-auto px-4 pb-10">
+            <FadeIn>
+                <h3 className="mb-6 text-center text-sm font-medium text-muted-foreground">Trusted by student clubs and communities</h3>
+            </FadeIn>
+            <FadeIn delay={0.1}>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-6">
+                    {partners.map((p) => (
+                        <div key={p} className="flex items-center justify-center rounded-md border bg-background py-6 text-sm font-semibold text-muted-foreground">
+                            {p}
+                        </div>
+                    ))}
+                </div>
+            </FadeIn>
         </section>
     );
 };
@@ -121,10 +179,11 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <LandingNav />
       <main>
         <HeroSection />
+        <PartnersSection />
         <FeatureGrid />
+        <StatsSection />
         <TestimonialsSection />
         <CallToActionSection />
       </main>

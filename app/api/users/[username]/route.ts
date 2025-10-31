@@ -6,12 +6,12 @@ import {NextRequest, NextResponse} from "next/server";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { username: string } }
+  { params }: { params: Promise<{ username: string }> }
 ) {
   await dbConnect();
 
   try {
-    const username = params.username;
+    const { username } = await params;
 
     // Find the user by username
     const user = await UserModel.findOne({ username }).select("-passwordHash"); // Exclude password

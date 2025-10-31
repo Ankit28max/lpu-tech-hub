@@ -1,14 +1,27 @@
 // app/feed/page.tsx
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Heart, MessageCircle } from 'lucide-react';
+import { Heart, MessageCircle, Repeat2, Ellipsis, Smile, Image as ImageIcon, BarChart3 } from 'lucide-react';
+import { FadeIn } from '@/components/ui/fade-in';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import { AnimatedTooltip } from '@/components/ui/animated-tooltip';
+import { CommandDialog, CommandInput, CommandList, CommandGroup, CommandItem, CommandEmpty, CommandSeparator, CommandShortcut } from '@/components/ui/command';
+import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
 
 // --- Reusable Interfaces ---
 interface Comment {
@@ -26,38 +39,197 @@ interface Post {
   };
   createdAt: string;
   likes: string[];
+  reposts: string[];
   comments: Comment[];
+  mediaUrls?: string[];
+  poll?: {
+    options: { id: string; text: string; votes: number }[];
+    totalVotes?: number;
+    hasVoted?: boolean;
+  };
 }
 interface Mentor {
   _id: string;
   username: string;
 }
 
+// --- Utilities ---
+function formatCount(value: number): string {
+  if (value < 1000) return String(value);
+  if (value < 1_000_000) return `${(value / 1000).toFixed(value % 1000 < 100 ? 1 : 0)}K`.replace(/\.0K$/, 'K');
+  return `${(value / 1_000_000).toFixed(value % 1_000_000 < 100_000 ? 1 : 0)}M`.replace(/\.0M$/, 'M');
+}
+
+function getRelativeTime(date: Date): { text: string; title: string } {
+  const now = new Date();
+  const diffMs = date.getTime() - now.getTime();
+  const absMs = Math.abs(diffMs);
+  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+  const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+    ['year', 1000 * 60 * 60 * 24 * 365],
+    ['month', 1000 * 60 * 60 * 24 * 30],
+    ['week', 1000 * 60 * 60 * 24 * 7],
+    ['day', 1000 * 60 * 60 * 24],
+    ['hour', 1000 * 60 * 60],
+    ['minute', 1000 * 60],
+    ['second', 1000],
+  ];
+  for (const [unit, ms] of units) {
+    if (absMs >= ms || unit === 'second') {
+      const value = Math.round(diffMs / ms);
+      return { text: rtf.format(value, unit), title: date.toLocaleString() };
+    }
+  }
+  return { text: '', title: date.toLocaleString() };
+}
+
+function AutolinkContent({ text }: { text: string }) {
+  const nodes = useMemo(() => {
+    const parts: Array<React.ReactNode> = [];
+    const regex = /(https?:\/\/[^\s]+)|(#\w+)|(@[A-Za-z0-9_]+)/g;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+      const [token, url, hashtag, mention] = match as unknown as [string, string, string, string];
+      if (url) {
+        parts.push(
+          <a key={`${match.index}-url`} href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+            {url}
+          </a>
+        );
+      } else if (hashtag) {
+        parts.push(
+          <Link key={`${match.index}-tag`} href={`/tags/${hashtag.substring(1).toLowerCase()}`} className="text-blue-600 hover:underline">
+            {hashtag}
+          </Link>
+        );
+      } else if (mention) {
+        parts.push(
+          <Link key={`${match.index}-mention`} href={`/profile/${mention.substring(1)}`} className="text-blue-600 hover:underline">
+            {mention}
+          </Link>
+        );
+      } else {
+        parts.push(token);
+      }
+      lastIndex = regex.lastIndex;
+    }
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+    return parts;
+  }, [text]);
+
+  return <>{nodes}</>;
+}
+
+// --- Lightweight Toasts (local to this page) ---
+type ToastType = 'success' | 'error' | 'info';
+function useToasts() {
+  const [toasts, setToasts] = useState<{ id: number; type: ToastType; message: string }[]>([]);
+  const showToast = useCallback((type: ToastType, message: string) => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, type, message }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3000);
+  }, []);
+  const ToastContainer = (
+    <div className="fixed bottom-4 right-4 z-50 space-y-2">
+      {toasts.map((t) => (
+        <div key={t.id} className={`rounded-md px-3 py-2 shadow-md text-sm text-white ${t.type === 'success' ? 'bg-emerald-600' : t.type === 'error' ? 'bg-rose-600' : 'bg-gray-800'}`}>
+          {t.message}
+        </div>
+      ))}
+    </div>
+  );
+  return { showToast, ToastContainer } as const;
+}
+
 // --- Create Post Form Component ---
-function CreatePostForm({ onPostCreated }: { onPostCreated: () => void }) {
+function CreatePostForm({ onPostCreated, onOptimisticPost }: { onPostCreated: () => void; onOptimisticPost: (temp: Post) => void }) {
   const [content, setContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const remaining = 280 - content.length;
+  const isTooLong = remaining < 0;
+  const canSubmit = !isLoading && content.trim().length > 0 && !isTooLong;
+  const [files, setFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
+  const { showToast } = useToasts();
+  const [showPoll, setShowPoll] = useState(false);
+  const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
+  const [gifUrl, setGifUrl] = useState('');
+  const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
+
+  const insertAtCaret = (emoji: string) => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const start = el.selectionStart || 0;
+    const end = el.selectionEnd || 0;
+    const next = content.slice(0, start) + emoji + content.slice(end);
+    setContent(next);
+    requestAnimationFrame(() => {
+      const pos = start + emoji.length;
+      el.setSelectionRange(pos, pos);
+      el.focus();
+    });
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!content.trim()) return;
+    if (!canSubmit) return;
     setIsLoading(true);
     
     const token = localStorage.getItem('authToken');
     try {
-      const response = await fetch('/api/posts', {
+      // Optimistic insert
+      const tempPost: Post = {
+        _id: `temp-${Date.now()}`,
+        content,
+        author: { _id: 'me', username: 'you' },
+        createdAt: new Date().toISOString(),
+        likes: [],
+        reposts: [],
+        comments: [],
+        mediaUrls: previews.length ? previews : (gifUrl ? [gifUrl] : undefined),
+        poll: showPoll ? {
+          options: pollOptions.filter((o) => o.trim()).map((o) => ({ id: `${o}-${Math.random().toString(36).slice(2,8)}`, text: o.trim(), votes: 0 })),
+          totalVotes: 0,
+          hasVoted: false,
+        } : undefined,
+      };
+      onOptimisticPost(tempPost);
+
+      let response: Response;
+      if (files.length > 0) {
+        const form = new FormData();
+        form.append('content', content);
+        files.forEach((f) => form.append('media', f));
+        response = await fetch('/api/posts', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: form,
+        });
+      } else {
+        response = await fetch('/api/posts', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ content }),
-      });
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ content, mediaUrls: gifUrl ? [gifUrl] : undefined, poll: showPoll ? { options: pollOptions.filter((o) => o.trim()) } : undefined }),
+        });
+      }
       if (!response.ok) throw new Error('Failed to create post');
       setContent('');
+      setFiles([]);
+      setPreviews([]);
+      setGifUrl('');
+      setShowPoll(false);
+      setPollOptions(['', '']);
+      showToast('success', 'Posted');
       onPostCreated();
     } catch (error) {
       console.error(error);
+      showToast('error', 'Failed to post');
     } finally {
       setIsLoading(false);
     }
@@ -70,15 +242,128 @@ function CreatePostForm({ onPostCreated }: { onPostCreated: () => void }) {
           <Textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            placeholder="What's happening in tech?"
-            className="mb-2"
-            maxLength={280}
+            onKeyDown={(e) => {
+              if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                (e.currentTarget.form as HTMLFormElement | null)?.requestSubmit();
+              }
+            }}
+            placeholder="What is happening?!"
+            className="mb-2 resize-none min-h-[64px]"
+            maxLength={560}
+            ref={textareaRef}
           />
-          <div className="flex justify-end items-center">
-             <span className="text-xs text-gray-500 mr-4">{content.length}/280</span>
-             <Button type="submit" disabled={isLoading}>
+          <div className="flex items-center gap-2 mb-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger className="rounded-full p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700">
+                <Smile className="h-5 w-5" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="grid grid-cols-8 gap-1 p-2">
+                {['😀','😄','😁','😂','😊','😍','😎','🤩','😇','🥳','🤔','😴','😭','😤','🔥','✨','💯','✅','🎉','🙌','👏','👍','❤️','🤝','🧠'].map((e) => (
+                  <button key={e} onClick={() => insertAtCaret(e)} className="text-xl hover:scale-110 transition-transform">
+                    {e}
+                  </button>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <label className="rounded-full p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 cursor-pointer">
+              <input type="file" accept="image/*" multiple onChange={(e) => {
+                const filesList = Array.from(e.target.files || []);
+                const valid: File[] = [];
+                for (const f of filesList.slice(0, 4)) {
+                  if (!f.type.startsWith('image/')) { showToast('error', 'Only images allowed'); continue; }
+                  if (f.size > 5 * 1024 * 1024) { showToast('error', 'Image too large (max 5MB)'); continue; }
+                  valid.push(f);
+                }
+                Promise.all(valid.map((file) => new Promise<string>((resolve) => {
+                  const reader = new FileReader();
+                  reader.onload = () => resolve(String(reader.result));
+                  reader.readAsDataURL(file);
+                }))).then((urls) => {
+                  setFiles(valid);
+                  setPreviews(urls);
+                });
+              }} className="hidden" />
+              <ImageIcon className="h-5 w-5" />
+            </label>
+            <button type="button" onClick={() => setShowPoll((s) => !s)} className="rounded-full p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700">
+              <BarChart3 className="h-5 w-5" />
+            </button>
+            <input
+              type="url"
+              placeholder="Paste GIF URL"
+              value={gifUrl}
+              onChange={(e) => setGifUrl(e.target.value.trim())}
+              className="ml-auto text-xs px-2 py-1 border rounded-md w-40"
+            />
+          </div>
+          {previews.length > 0 && (
+            <div className="mb-2 grid grid-cols-2 gap-2">
+              {previews.map((src, i) => (
+                <div key={i} className="relative rounded-md overflow-hidden border">
+                  <img src={src} alt="preview" className="w-full h-32 object-cover" />
+                </div>
+              ))}
+            </div>
+          )}
+          {!previews.length && gifUrl && (
+            <div className="mb-2 rounded-md overflow-hidden border">
+              <img src={gifUrl} alt="gif" className="w-full h-40 object-cover" />
+            </div>
+          )}
+          {showPoll && (
+            <div className="mb-2 space-y-2">
+              {pollOptions.map((opt, idx) => (
+                <input
+                  key={idx}
+                  value={opt}
+                  onChange={(e) => setPollOptions((arr) => arr.map((v, i) => i === idx ? e.target.value : v))}
+                  placeholder={`Option ${idx + 1}`}
+                  className="w-full text-sm px-2 py-1 border rounded"
+                  maxLength={80}
+                />
+              ))}
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setPollOptions((arr) => arr.length < 4 ? [...arr, ''] : arr)}>Add option</Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => setPollOptions((arr) => arr.length > 2 ? arr.slice(0, -1) : arr)}>Remove option</Button>
+              </div>
+            </div>
+          )}
+          <div className="flex items-center justify-between mb-2">
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(e) => {
+                const filesList = Array.from(e.target.files || []);
+                const valid: File[] = [];
+                const previewsLocal: string[] = [];
+                for (const f of filesList.slice(0, 4)) {
+                  if (!f.type.startsWith('image/')) { showToast('error', 'Only images allowed'); continue; }
+                  if (f.size > 5 * 1024 * 1024) { showToast('error', 'Image too large (max 5MB)'); continue; }
+                  valid.push(f);
+                }
+                Promise.all(valid.map((file) => new Promise<string>((resolve) => {
+                  const reader = new FileReader();
+                  reader.onload = () => resolve(String(reader.result));
+                  reader.readAsDataURL(file);
+                }))).then((urls) => {
+                  setFiles(valid);
+                  setPreviews(urls);
+                });
+              }}
+              className="text-xs"
+            />
+          </div>
+          <div className="flex justify-between items-center">
+            <span className={`text-xs mr-4 ${isTooLong ? 'text-red-600' : remaining <= 20 ? 'text-yellow-600' : 'text-gray-500'}`}>
+              {remaining}
+            </span>
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <span>Ctrl/⌘ + Enter</span>
+              <Button type="submit" disabled={!canSubmit}>
                 {isLoading ? 'Posting...' : 'Post'}
             </Button>
+            </div>
           </div>
         </form>
       </CardContent>
@@ -91,10 +376,15 @@ function PostActions({ post, onCommentClick }: { post: Post, onCommentClick: () 
     const { user } = useAuth();
     const [likes, setLikes] = useState(post.likes.length);
     const [isLiked, setIsLiked] = useState(user ? post.likes.includes(user._id) : false);
+    const [reposts, setReposts] = useState(post.reposts.length);
+    const [isReposted, setIsReposted] = useState(user ? post.reposts.includes(user._id) : false);
+    const isOwner = user && user._id === post.author._id;
+    const { showToast } = useToasts();
     
     useEffect(() => {
         setIsLiked(user ? post.likes.includes(user._id) : false);
-    }, [user, post.likes]);
+        setIsReposted(user ? post.reposts.includes(user._id) : false);
+    }, [user, post.likes, post.reposts]);
     
     const handleLike = async () => {
         if (!user) return;
@@ -113,29 +403,91 @@ function PostActions({ post, onCommentClick }: { post: Post, onCommentClick: () 
             if (!response.ok) {
                 setIsLiked(originalIsLiked);
                 setLikes(originalLikes);
+                showToast('error', 'Failed to like');
             }
         } catch (error) {
             console.error("Failed to like post:", error);
             setIsLiked(originalIsLiked);
             setLikes(originalLikes);
+            showToast('error', 'Failed to like');
+        }
+    };
+
+    const handleRepost = async () => {
+        if (!user) return;
+
+        const originalIsReposted = isReposted;
+        const originalReposts = reposts;
+        setIsReposted(!isReposted);
+        setReposts(isReposted ? reposts - 1 : reposts + 1);
+
+        const token = localStorage.getItem('authToken');
+        try {
+            const response = await fetch(`/api/posts/${post._id}/repost`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!response.ok) {
+                setIsReposted(originalIsReposted);
+                setReposts(originalReposts);
+                showToast('error', 'Failed to repost');
+            }
+        } catch (error) {
+            console.error("Failed to repost:", error);
+            setIsReposted(originalIsReposted);
+            setReposts(originalReposts);
+            showToast('error', 'Failed to repost');
         }
     };
 
     return (
-        <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-1">
-                <Button variant="ghost" size="icon" onClick={handleLike} disabled={!user}>
-                    <Heart className={`h-5 w-5 ${isLiked ? 'text-red-500 fill-current' : 'text-gray-500'}`} />
-                </Button>
-                <span className="text-sm text-gray-500">{likes}</span>
-            </div>
-            <div className="flex items-center space-x-1">
-                <Button variant="ghost" size="icon" onClick={onCommentClick}>
-                    <MessageCircle className="h-5 w-5 text-gray-500" />
-                </Button>
-                <span className="text-sm text-gray-500">{post.comments.length}</span>
+        <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleLike}
+                disabled={!user}
+                className={`group flex items-center gap-1 rounded-full px-2 py-1 transition-colors ${isLiked ? 'text-red-600' : 'text-gray-500 hover:bg-red-50 hover:text-red-600'}`}
+              >
+                <Heart className={`h-5 w-5 ${isLiked ? 'fill-red-600' : ''}`} />
+                <span className="text-sm">{formatCount(likes)}</span>
+              </button>
+              <button
+                onClick={handleRepost}
+                disabled={!user}
+                className={`group flex items-center gap-1 rounded-full px-2 py-1 transition-colors ${isReposted ? 'text-green-600' : 'text-gray-500 hover:bg-green-50 hover:text-green-600'}`}
+              >
+                <Repeat2 className="h-5 w-5" />
+                <span className="text-sm">{formatCount(reposts)}</span>
+              </button>
+              <button
+                onClick={onCommentClick}
+                className="group flex items-center gap-1 rounded-full px-2 py-1 text-gray-500 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+              >
+                <MessageCircle className="h-5 w-5" />
+                <span className="text-sm">{formatCount(post.comments.length)}</span>
+              </button>
             </div>
         </div>
+    );
+}
+
+function PostMenu({ isOwner, onDelete }: { isOwner: boolean; onDelete: () => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger className="ml-auto rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+        <Ellipsis className="h-5 w-5" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[180px]">
+        <DropdownMenuItem onClick={() => {
+          const url = typeof window !== 'undefined' ? `${window.location.origin}/feed` : '/feed';
+          navigator.clipboard?.writeText(url).catch(() => {});
+        }}>Copy link</DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {isOwner && (
+          <DropdownMenuItem variant="destructive" onClick={onDelete}>Delete post</DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
     );
 }
 
@@ -252,15 +604,16 @@ function SuggestedMentors() {
                 <CardTitle className="text-lg">Suggested Mentors</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-                {mentors.map(mentor => (
-                    <div key={mentor._id} className="flex items-center space-x-3">
-                        <Avatar className="h-10 w-10">
-                           <AvatarImage src={`https://api.dicebear.com/7.x/pixel-art/svg?seed=${mentor.username}`} alt={mentor.username} />
-                           <AvatarFallback>{mentor.username.substring(0,2).toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        <Link href={`/profile/${mentor.username}`} className="font-medium hover:underline text-sm">{mentor.username}</Link>
+                <div className="flex items-center -space-x-2">
+                  <AnimatedTooltip
+                    items={mentors.map((m, i) => ({
+                      id: i + 1,
+                      name: m.username,
+                      designation: 'Mentor',
+                      image: `https://api.dicebear.com/7.x/pixel-art/svg?seed=${m.username}`,
+                    }))}
+                  />
                     </div>
-                ))}
             </CardContent>
         </Card>
     );
@@ -272,6 +625,193 @@ export default function FeedPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeCommentPostId, setActiveCommentPostId] = useState<string | null>(null);
+  const { showToast, ToastContainer } = useToasts();
+  const [isCmdOpen, setIsCmdOpen] = useState(false);
+  const [isComposeOpen, setIsComposeOpen] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<'latest' | 'following' | 'trending' | 'media' | 'polls'>('latest');
+  const [lightbox, setLightbox] = useState<string | null>(null);
+  const [followingPosts, setFollowingPosts] = useState<Post[] | null>(null);
+  const [followingSet, setFollowingSet] = useState<Set<string>>(new Set());
+
+  const displayedPosts = useMemo(() => {
+    const base = posts.slice();
+    if (activeFilter === 'following') {
+      return (followingPosts || []);
+    }
+    if (activeFilter === 'trending') {
+      // Simple trending score based on engagement; recent ties broken by recency
+      return base
+        .slice()
+        .sort((a, b) => {
+          const aScore = (a.likes?.length || 0) * 3 + (a.comments?.length || 0) * 2 + (a.reposts?.length || 0) * 4;
+          const bScore = (b.likes?.length || 0) * 3 + (b.comments?.length || 0) * 2 + (b.reposts?.length || 0) * 4;
+          if (bScore !== aScore) return bScore - aScore;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+    }
+    if (activeFilter === 'media') {
+      return base.filter((p) => p.mediaUrls && p.mediaUrls.length > 0);
+    }
+    if (activeFilter === 'polls') {
+      return base.filter((p) => Boolean(p.poll));
+    }
+    // latest
+    return base.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [posts, followingPosts, activeFilter]);
+
+  useEffect(() => {
+    if (activeFilter !== 'following' || followingPosts) return;
+    const load = async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        const res = await fetch('/api/feed/following', { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await res.json();
+        if (res.ok) setFollowingPosts(data.posts || []);
+      } catch {}
+    };
+    load();
+  }, [activeFilter, followingPosts]);
+
+  function TrendingTopics() {
+    const [topics, setTopics] = useState<{ name: string; count: number }[]>([]);
+    const [categories, setCategories] = useState<{ category: string; count: number }[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+      let mounted = true;
+      (async () => {
+        try {
+          const res = await fetch('/api/trending');
+          const data = await res.json();
+          if (!mounted) return;
+          if (res.ok) {
+            setTopics(data.trendingTopics || []);
+            setCategories(data.categoryStats || []);
+          }
+        } catch (e) {
+          // no-op
+        } finally {
+          mounted = false;
+          setLoading(false);
+        }
+      })();
+      return () => { mounted = false; };
+    }, []);
+
+    return (
+      <Card>
+        <CardHeader className="p-4 pb-2">
+          <CardTitle className="text-lg">Trending</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
+          {loading ? (
+            <div className="space-y-2">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="h-4 w-3/4 bg-gray-200 rounded animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {topics.length > 0 && (
+                <div>
+                  <div className="text-sm text-gray-500 mb-2">Trending topics</div>
+                  <ul className="space-y-1">
+                    {topics.map((t) => (
+                      <li key={t.name} className="flex items-center justify-between">
+                        <Link href={`/tags/${t.name}`} className="text-blue-600 hover:underline">#{t.name}</Link>
+                        <span className="text-xs text-gray-500">{t.count}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {categories.length > 0 && (
+                <div>
+                  <div className="text-sm text-gray-500 mb-2">Popular categories</div>
+                  <ul className="space-y-1">
+                    {categories.map((c) => (
+                      <li key={c.category} className="flex items-center justify-between">
+                        <span className="capitalize">{c.category}</span>
+                        <span className="text-xs text-gray-500">{c.count}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {topics.length === 0 && categories.length === 0 && (
+                <div className="text-sm text-gray-500">No trending data yet.</div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  function SuggestedUsers() {
+    const { user } = useAuth();
+    const [users, setUsers] = useState<{ _id: string; username: string }[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [followingMap, setFollowingMap] = useState<Record<string, boolean>>({});
+
+    useEffect(() => {
+      let mounted = true;
+      (async () => {
+        try {
+          const token = localStorage.getItem('authToken');
+          const res = await fetch('/api/users/suggestions', { headers: { 'Authorization': `Bearer ${token}` } });
+          const data = await res.json();
+          if (!mounted) return;
+          if (res.ok) setUsers(data.users || []);
+        } catch {}
+        finally { setLoading(false); }
+      })();
+      return () => { mounted = false };
+    }, []);
+
+    const toggleFollow = async (targetId: string) => {
+      try {
+        const token = localStorage.getItem('authToken');
+        const res = await fetch(`/api/users/${targetId}/follow`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) {
+          setFollowingMap((m) => ({ ...m, [targetId]: !m[targetId] }));
+        }
+      } catch {}
+    };
+
+    if (!user) return null;
+    return (
+      <Card>
+        <CardHeader className="p-4 pb-2">
+          <CardTitle className="text-lg">Who to follow</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0 space-y-3">
+          {loading ? (
+            <div className="space-y-2">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="h-10 bg-gray-200 rounded animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            users.slice(0, 5).map((u) => (
+              <div key={u._id} className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={`https://api.dicebear.com/7.x/pixel-art/svg?seed=${u.username}`} />
+                    <AvatarFallback>{u.username.substring(0,2).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <Link href={`/profile/${u.username}`} className="font-medium hover:underline">{u.username}</Link>
+                </div>
+                <Button size="sm" variant={followingMap[u._id] ? 'outline' : 'default'} onClick={() => toggleFollow(u._id)}>
+                  {followingMap[u._id] ? 'Following' : 'Follow'}
+                </Button>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
 
   const fetchPosts = useCallback(async () => {
     try {
@@ -291,50 +831,279 @@ export default function FeedPage() {
     fetchPosts();
   }, [fetchPosts]);
 
+  useEffect(() => {
+    // load my following list for follow buttons
+    (async () => {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+        if (!token) return;
+        const res = await fetch('/api/profile', { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await res.json();
+        if (res.ok && data.user?.following) {
+          setFollowingSet(new Set<string>(data.user.following.map((id: string) => String(id))));
+        }
+      } catch {}
+    })();
+  }, []);
+
+  const toggleFollowUser = async (targetUserId: string) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const isFollowing = followingSet.has(targetUserId);
+      setFollowingSet((prev) => {
+        const next = new Set(prev);
+        if (isFollowing) next.delete(targetUserId); else next.add(targetUserId);
+        return next;
+      });
+      const res = await fetch(`/api/users/${targetUserId}/follow`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` } });
+      if (!res.ok) {
+        // revert on failure
+        setFollowingSet((prev) => {
+          const next = new Set(prev);
+          if (isFollowing) next.add(targetUserId); else next.delete(targetUserId);
+          return next;
+        });
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCmdOpen((o) => !o);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const handleCommentClick = (postId: string) => {
     setActiveCommentPostId(activeCommentPostId === postId ? null : postId);
   };
 
   if (isLoading) {
-    return <div className="text-center mt-20">Loading feed...</div>;
+    return (
+      <div className="container mx-auto my-8 px-4">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
+          <aside className="hidden lg:block lg:col-span-1" />
+          <main className="lg:col-span-2 space-y-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="rounded-xl border p-4 animate-pulse">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="h-10 w-10 rounded-full bg-gray-200" />
+                  <div className="h-3 w-24 rounded bg-gray-200" />
+                </div>
+                <div className="h-3 w-full rounded bg-gray-200 mb-2" />
+                <div className="h-3 w-3/4 rounded bg-gray-200" />
+              </div>
+            ))}
+          </main>
+          <aside className="hidden lg:block lg:col-span-1" />
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="container mx-auto my-8 px-4">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 items-start">
 
-            {/* --- Left Column --- */}
-            <aside className="hidden lg:block lg:col-span-1">
+            {/* --- Left Column (Vertical Tabs) --- */}
+            <aside className="col-span-1">
                 <div className="sticky top-24 space-y-6">
-                   <UserProfileCard />
+                  <Card>
+                    <CardHeader className="p-4 pb-2">
+                      <CardTitle className="text-lg">Feed</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-2 pt-0">
+                      <nav className="flex flex-col">
+                        <button
+                          className={`text-left px-3 py-2 rounded-md mb-1 ${activeFilter === 'latest' ? 'bg-gray-100 font-semibold' : 'hover:bg-gray-50'}`}
+                          onClick={() => setActiveFilter('latest')}
+                        >
+                          Latest
+                        </button>
+                        <button
+                          className={`text-left px-3 py-2 rounded-md mb-1 ${activeFilter === 'following' ? 'bg-gray-100 font-semibold' : 'hover:bg-gray-50'}`}
+                          onClick={() => setActiveFilter('following')}
+                        >
+                          Following
+                        </button>
+                        <button
+                          className={`text-left px-3 py-2 rounded-md mb-1 ${activeFilter === 'trending' ? 'bg-gray-100 font-semibold' : 'hover:bg-gray-50'}`}
+                          onClick={() => setActiveFilter('trending')}
+                        >
+                          Trending
+                        </button>
+                        <button
+                          className={`text-left px-3 py-2 rounded-md mb-1 ${activeFilter === 'media' ? 'bg-gray-100 font-semibold' : 'hover:bg-gray-50'}`}
+                          onClick={() => setActiveFilter('media')}
+                        >
+                          Media
+                        </button>
+                        <button
+                          className={`text-left px-3 py-2 rounded-md ${activeFilter === 'polls' ? 'bg-gray-100 font-semibold' : 'hover:bg-gray-50'}`}
+                          onClick={() => setActiveFilter('polls')}
+                        >
+                          Polls
+                        </button>
+                      </nav>
+                    </CardContent>
+                  </Card>
+                  <UserProfileCard />
                 </div>
             </aside>
 
             {/* --- Middle Column (Main Feed) --- */}
-            <main className="lg:col-span-2">
-                {user && <CreatePostForm onPostCreated={fetchPosts} />}
+            <main className="md:col-span-2">
+                <div className="z-10 bg-background border-b">
+                  <div className="flex items-center gap-2 px-2 py-3">
+                    <div className="flex items-center gap-1 rounded-full border p-1">
+                      <Badge variant={activeFilter === 'latest' ? 'default' : 'outline'} className="cursor-pointer" onClick={() => setActiveFilter('latest')}>Latest</Badge>
+                      <Badge variant={activeFilter === 'following' ? 'default' : 'outline'} className="cursor-pointer" onClick={() => setActiveFilter('following')}>Following</Badge>
+                      <Badge variant={activeFilter === 'trending' ? 'default' : 'outline'} className="cursor-pointer" onClick={() => setActiveFilter('trending')}>Trending</Badge>
+                      <Badge variant={activeFilter === 'media' ? 'default' : 'outline'} className="cursor-pointer" onClick={() => setActiveFilter('media')}>Media</Badge>
+                      <Badge variant={activeFilter === 'polls' ? 'default' : 'outline'} className="cursor-pointer" onClick={() => setActiveFilter('polls')}>Polls</Badge>
+                    </div>
+                    <Button variant="outline" size="sm" className="ml-auto" onClick={() => setIsCmdOpen(true)}>Search / Cmd+K</Button>
+                    <Sheet open={isComposeOpen} onOpenChange={setIsComposeOpen}>
+                      <SheetTrigger asChild>
+                        <Button size="sm">Compose</Button>
+                      </SheetTrigger>
+                      <SheetContent side="bottom">
+                        <SheetHeader>
+                          <SheetTitle>Compose</SheetTitle>
+                        </SheetHeader>
+                        {user && (
+                          <div className="p-4 pt-0">
+                            <CreatePostForm
+                              onPostCreated={() => { setIsComposeOpen(false); fetchPosts(); }}
+                              onOptimisticPost={(temp) => setPosts((prev) => [temp, ...prev])}
+                            />
+                          </div>
+                        )}
+                      </SheetContent>
+                    </Sheet>
+                  </div>
+                </div>
+                <FadeIn>
+                  {user && (
+                    <CreatePostForm
+                      onPostCreated={fetchPosts}
+                      onOptimisticPost={(temp) => setPosts((prev) => [temp, ...prev])}
+                    />
+                  )}
+                </FadeIn>
                 <div className="space-y-4 mt-6">
-                    {posts.length > 0 ? (
-                        posts.map((post) => (
-                            <Card key={post._id}>
-                                <CardHeader className="p-4">
-                                    <div className="flex items-center space-x-3">
+                    {displayedPosts.length > 0 ? (
+                        displayedPosts.map((post) => (
+                            <FadeIn key={post._id}>
+                              <Card className="rounded-xl border hover:shadow-sm transition-shadow">
+                                <CardHeader className="p-4 pb-2">
+                                    <div className="flex items-start gap-3">
                                         <Avatar>
                                             <AvatarImage src={`https://api.dicebear.com/7.x/pixel-art/svg?seed=${post.author.username}`} alt={post.author.username} />
                                             <AvatarFallback>{post.author.username.substring(0, 2).toUpperCase()}</AvatarFallback>
                                         </Avatar>
-                                        <div>
-                                            <Link href={`/profile/${post.author.username}`} className="font-bold hover:underline">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <Link href={`/profile/${post.author.username}`} className="font-semibold hover:underline">
                                                 {post.author.username}
                                             </Link>
-                                            <p className="text-xs text-gray-500">
-                                                {new Date(post.createdAt).toLocaleString()}
-                                            </p>
+                                                <span className="text-xs text-gray-500" title={new Date(post.createdAt).toLocaleString()}>
+                                                    {getRelativeTime(new Date(post.createdAt)).text}
+                                                </span>
+                                                <div className="ml-auto flex items-center gap-2">
+                                                  {user && user._id !== post.author._id && (
+                                                    <Button
+                                                      size="sm"
+                                                      variant={followingSet.has(post.author._id) ? 'outline' : 'default'}
+                                                      onClick={() => toggleFollowUser(post.author._id)}
+                                                    >
+                                                      {followingSet.has(post.author._id) ? 'Following' : 'Follow'}
+                                                    </Button>
+                                                  )}
+                                                  <PostMenu
+                                                    isOwner={Boolean(user && user._id === post.author._id)}
+                                                    onDelete={async () => {
+                                                      const token = localStorage.getItem('authToken');
+                                                      try {
+                                                        // Optimistic remove
+                                                        setPosts((prev) => prev.filter((p) => p._id !== post._id));
+                                                        const res = await fetch(`/api/posts/${post._id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+                                                        if (!res.ok) throw new Error('Failed');
+                                                        showToast('success', 'Post deleted');
+                                                      } catch (e) {
+                                                        console.error(e);
+                                                        showToast('error', 'Failed to delete');
+                                                        // Re-fetch to restore
+                                                        fetchPosts();
+                                                      }
+                                                    }}
+                                                  />
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </CardHeader>
                                 <CardContent className="px-4 pb-2">
-                                    <p className="text-gray-800 break-words">{post.content}</p>
+                                    <p className="text-[15px] leading-6 text-gray-900 break-words whitespace-pre-wrap">
+                                        <AutolinkContent text={post.content} />
+                                    </p>
+                                  {post.mediaUrls && post.mediaUrls.length > 0 && (
+                                    <div className={`mt-3 grid gap-2 ${post.mediaUrls.length === 1 ? 'grid-cols-1' : post.mediaUrls.length === 2 ? 'grid-cols-2' : 'grid-cols-2'}`}>
+                                      {post.mediaUrls.slice(0, 4).map((src, i) => (
+                                        <button key={i} className="overflow-hidden rounded-lg border group" onClick={() => setLightbox(src)}>
+                                          <img src={src} alt="media" className="w-full h-60 object-cover transition-transform group-hover:scale-[1.02]" />
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {post.poll && post.poll.options?.length > 0 && (
+                                    <div className="mt-3 space-y-2">
+                                      {post.poll.options.map((opt) => {
+                                        const total = post.poll?.totalVotes || post.poll.options.reduce((a, b) => a + (b.votes || 0), 0);
+                                        const pct = total ? Math.round((opt.votes / total) * 100) : 0;
+                                        return (
+                                          <button
+                                            key={opt.id}
+                                            disabled={post.poll?.hasVoted}
+                                            onClick={async () => {
+                                              // optimistic vote
+                                              setPosts((prev) => prev.map((p) => {
+                                                if (p._id !== post._id || !p.poll) return p;
+                                                const updated = { ...p, poll: { ...p.poll, hasVoted: true, options: p.poll.options.map(o => o.id === opt.id ? { ...o, votes: o.votes + 1 } : o) } };
+                                                return updated;
+                                              }));
+                                              try {
+                                                const token = localStorage.getItem('authToken');
+                                                await fetch(`/api/posts/${post._id}/poll`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ optionId: opt.id }) });
+                                              } catch {
+                                                fetchPosts();
+                                              }
+                                            }}
+                                            className="w-full text-left text-sm border rounded-md px-3 py-2 hover:bg-gray-50 disabled:opacity-60"
+                                          >
+                                            <div className="flex items-center gap-2">
+                                              <span className="flex-1">{opt.text}</span>
+                                              {total > 0 && <span className="text-xs text-gray-500">{pct}%</span>}
+                                            </div>
+                                            {total > 0 && (
+                                              <div className="mt-1 h-1.5 w-full rounded bg-gray-200 overflow-hidden">
+                                                <div className="h-full bg-gray-600" style={{ width: `${pct}%` }} />
+                                              </div>
+                                            )}
+                                          </button>
+                                        );
+                                      })}
+                                      {post.poll?.totalVotes !== undefined && (
+                                        <div className="text-xs text-gray-500">{post.poll.totalVotes} votes</div>
+                                      )}
+                                    </div>
+                                  )}
                                 </CardContent>
                                 <CardFooter className="p-2 border-t">
                                     <PostActions post={post} onCommentClick={() => handleCommentClick(post._id)} />
@@ -342,7 +1111,8 @@ export default function FeedPage() {
                                 {activeCommentPostId === post._id && (
                                     <CommentSection post={post} onCommentAdded={fetchPosts} />
                                 )}
-                            </Card>
+                              </Card>
+                            </FadeIn>
                         ))
                     ) : (
                         <div className="text-center py-10">
@@ -354,12 +1124,41 @@ export default function FeedPage() {
             </main>
 
             {/* --- Right Column --- */}
-            <aside className="hidden lg:block lg:col-span-1">
+            <aside className="col-span-1">
                  <div className="sticky top-24 space-y-6">
+                   <TrendingTopics />
+                   <SuggestedUsers />
                    <SuggestedMentors />
                 </div>
             </aside>
         </div>
+        {ToastContainer}
+        <CommandDialog open={isCmdOpen} onOpenChange={setIsCmdOpen}>
+          <CommandInput placeholder="Search posts, people, tags..." />
+          <CommandList>
+            <CommandEmpty>No results found.</CommandEmpty>
+            <CommandGroup heading="Navigation">
+              <CommandItem onSelect={() => { setIsCmdOpen(false); window.location.href = '/feed'; }}>Feed<CommandShortcut>G F</CommandShortcut></CommandItem>
+              <CommandItem onSelect={() => { setIsCmdOpen(false); window.location.href = '/projects'; }}>Projects<CommandShortcut>G P</CommandShortcut></CommandItem>
+            </CommandGroup>
+            <CommandSeparator />
+            <CommandGroup heading="Quick Actions">
+              <CommandItem onSelect={() => { setIsCmdOpen(false); setIsComposeOpen(true); }}>Compose<CommandShortcut>C</CommandShortcut></CommandItem>
+              <CommandItem onSelect={() => { setIsCmdOpen(false); setActiveFilter('latest'); }}>Show Latest<CommandShortcut>L</CommandShortcut></CommandItem>
+              <CommandItem onSelect={() => { setIsCmdOpen(false); setActiveFilter('following'); }}>Show Following<CommandShortcut>F</CommandShortcut></CommandItem>
+              <CommandItem onSelect={() => { setIsCmdOpen(false); setActiveFilter('trending'); }}>Show Trending<CommandShortcut>T</CommandShortcut></CommandItem>
+              <CommandItem onSelect={() => { setIsCmdOpen(false); setActiveFilter('media'); }}>Show Media<CommandShortcut>M</CommandShortcut></CommandItem>
+              <CommandItem onSelect={() => { setIsCmdOpen(false); setActiveFilter('polls'); }}>Show Polls<CommandShortcut>P</CommandShortcut></CommandItem>
+            </CommandGroup>
+          </CommandList>
+        </CommandDialog>
+        <Dialog open={Boolean(lightbox)} onOpenChange={(v) => !v && setLightbox(null)}>
+          <DialogContent className="max-w-3xl">
+            {lightbox && (
+              <img src={lightbox} alt="media" className="w-full h-auto rounded" />
+            )}
+          </DialogContent>
+        </Dialog>
     </div>
   );
 }

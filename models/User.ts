@@ -11,6 +11,8 @@ export interface IUser extends Document {
   bio?: string;
   isAcceptingMentees: boolean;
   mentorshipSkills: string[];
+  followers?: mongoose.Types.ObjectId[];
+  following?: mongoose.Types.ObjectId[];
 }
 
 const UserSchema: Schema = new Schema({
@@ -53,6 +55,8 @@ const UserSchema: Schema = new Schema({
     type: [String],
     default: [],
   },
+  followers: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+  following: [{ type: Schema.Types.ObjectId, ref: 'User' }],
 });
 
 export default mongoose.models.User || mongoose.model<IUser>('User', UserSchema);

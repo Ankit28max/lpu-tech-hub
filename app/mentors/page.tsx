@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { FadeIn } from '@/components/ui/fade-in';
 
 
 // TypeScript interface for a Mentor
@@ -43,15 +44,18 @@ export default function MentorsPage() {
 
   return (
     <div className="container mx-auto my-8 px-4">
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold">Find a Mentor</h1>
-        <p className="text-md text-muted-foreground mt-2">Connect with students who are ready to help.</p>
-      </div>
+      <FadeIn>
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold">Find a Mentor</h1>
+          <p className="text-md text-muted-foreground mt-2">Connect with students who are ready to help.</p>
+        </div>
+      </FadeIn>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {mentors.length > 0 ? (
           mentors.map((mentor) => (
-            <Card key={mentor._id}>
+            <FadeIn key={mentor._id}>
+              <Card>
                 <CardHeader>
                     <div className="flex items-center space-x-3">
                         <Avatar>
@@ -73,7 +77,8 @@ export default function MentorsPage() {
                         ))}
                     </div>
                 </CardContent>
-            </Card>
+              </Card>
+            </FadeIn>
           ))
         ) : (
           <p className="col-span-full text-center text-gray-500 mt-10">No students are currently accepting mentees. Check back later!</p>

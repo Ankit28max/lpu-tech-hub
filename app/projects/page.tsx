@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { FadeIn } from '@/components/ui/fade-in';
 
 // TypeScript interface
 interface Project {
@@ -48,22 +49,25 @@ export default function ProjectsPage() {
 
   return (
     <div className="container mx-auto my-8 px-4">
-      <div className="flex justify-between items-center mb-8">
-        <div className="space-y-1">
-            <h1 className="text-3xl font-bold">Project Board</h1>
-            <p className="text-muted-foreground">Find a team or build yours.</p>
+      <FadeIn>
+        <div className="flex justify-between items-center mb-8">
+          <div className="space-y-1">
+              <h1 className="text-3xl font-bold">Project Board</h1>
+              <p className="text-muted-foreground">Find a team or build yours.</p>
+          </div>
+          {user && (
+            <Link href="/projects/new">
+               <Button>+ Post a Project</Button>
+            </Link>
+          )}
         </div>
-        {user && (
-          <Link href="/projects/new">
-             <Button>+ Post a Project</Button>
-          </Link>
-        )}
-      </div>
+      </FadeIn>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {projects.length > 0 ? (
           projects.map((project) => (
-            <Card key={project._id} className="flex flex-col">
+            <FadeIn key={project._id}>
+              <Card className="flex flex-col">
                 <CardHeader>
                     <CardTitle>{project.title}</CardTitle>
                     <CardDescription>
@@ -81,7 +85,8 @@ export default function ProjectsPage() {
                 <CardFooter>
                     <p className="text-xs text-muted-foreground">{new Date(project.createdAt).toLocaleDateString()}</p>
                 </CardFooter>
-            </Card>
+              </Card>
+            </FadeIn>
           ))
         ) : (
           <p className="col-span-full text-center text-gray-500 mt-10">No open projects right now. Why not post one?</p>

@@ -2,6 +2,7 @@
 import dbConnect from "@/lib/dbConnect";
 import {NextRequest, NextResponse} from "next/server";
 import PostModel from "@/models/Post";
+import UserModel from "@/models/User";
 import { z } from 'zod';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 
@@ -21,6 +22,9 @@ const getUserIdFromToken = (request: NextRequest): string | null => {
 
 const PostSchema = z.object({
   content: z.string().min(1, "Post content cannot be empty").max(280),
+  category: z.string().optional().default('general'),
+  tags: z.array(z.string()).optional().default([]),
+  imageUrl: z.string().optional().nullable(),
 });
 
 export async function POST(request: NextRequest) {
@@ -33,20 +37,33 @@ export async function POST(request: NextRequest) {
         }
         
         const body = await request.json();
+        console.log('Received request body:', body);
         const result = PostSchema.safeParse(body);
 
         if (!result.success) {
+            console.log('Validation failed:', result.error.format());
             return NextResponse.json({ message: "Invalid post content", errors: result.error.format() }, { status: 400 });
         }
 
-        const { content } = result.data;
+        const { content, category, tags, imageUrl } = result.data;
+        
+        console.log('Creating post with data:', { content, category, tags, imageUrl });
+        console.log('imageUrl type:', typeof imageUrl);
+        console.log('imageUrl value:', imageUrl);
         
         const newPost = new PostModel({
             content,
+            category,
+            tags,
+            imageUrl,
             author: userId,
         });
 
+        console.log('New post object before save:', newPost.toObject());
+
         await newPost.save();
+        console.log('Post saved successfully:', newPost);
+        console.log('Post imageUrl after save:', newPost.imageUrl);
 
         return NextResponse.json({ message: "Post created successfully", post: newPost }, { status: 201 });
 
@@ -71,6 +88,8 @@ export async function GET(request: NextRequest) {
                 }
             })
             .sort({ createdAt: -1 }); // Sort by newest first
+
+        console.log('Fetched posts:', posts.map(p => ({ id: p._id, content: p.content, imageUrl: p.imageUrl })));
 
         return NextResponse.json({ posts }, { status: 200 });
     } catch (error) {

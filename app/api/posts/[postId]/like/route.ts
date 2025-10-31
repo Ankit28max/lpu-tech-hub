@@ -17,7 +17,7 @@ const getUserIdFromToken = (request: NextRequest): string | null => {
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { postId: string } }
+  { params }: { params: Promise<{ postId: string }> }
 ) {
   await dbConnect();
   try {
@@ -26,7 +26,7 @@ export async function PUT(
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    const postId = params.postId;
+    const { postId } = await params;
     const post = await PostModel.findById(postId);
 
     if (!post) {

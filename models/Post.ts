@@ -14,11 +14,15 @@ export interface IPost extends Document {
   author: IUser['_id'];
   createdAt: Date;
   likes: IUser['_id'][]; 
+  reposts: IUser['_id'][];
   comments: { 
     content: string;
     author: IUser['_id'];
     createdAt: Date;
   }[];
+  category?: string;
+  tags?: string[];
+  imageUrl?: string;
 }
 
 const PostSchema: Schema = new Schema({
@@ -38,8 +42,23 @@ const PostSchema: Schema = new Schema({
     type: Schema.Types.ObjectId,
     ref: 'User',
   }],
+  reposts: [{
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+  }],
   // -----------------
    comments: [CommentSchema],
+  category: {
+    type: String,
+    default: 'general',
+    enum: ['general', 'coding', 'learning', 'project', 'career'],
+  },
+  tags: [{
+    type: String,
+  }],
+  imageUrl: {
+    type: String,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
