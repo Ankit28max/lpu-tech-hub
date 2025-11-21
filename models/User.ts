@@ -16,7 +16,25 @@ const UserSchema = new Schema({
   },
   passwordHash: {
     type: String,
-    required: [true, 'Password is required.'],
+    required: false, // Optional for OAuth users
+  },
+  // OAuth fields
+  googleId: {
+    type: String,
+    unique: true,
+    sparse: true, // Allows null values while maintaining uniqueness
+  },
+  provider: {
+    type: String,
+    enum: ['email', 'google'],
+    default: 'email',
+  },
+  emailVerified: {
+    type: Date,
+  },
+  avatar: {
+    type: String,
+    default: '',
   },
   role: {
     type: String,
