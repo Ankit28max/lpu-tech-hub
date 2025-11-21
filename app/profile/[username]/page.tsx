@@ -65,13 +65,17 @@ export default function UserProfilePage() {
               const meRes = await fetch('/api/profile', { headers: { 'Authorization': `Bearer ${token}` } });
               const meData = await meRes.json();
               if (meRes.ok) {
-                const following: string[] = (meData.user?.following || []).map((id: any) => String(id));
+                const following: string[] = (meData.user?.following || []).map((id: unknown) => String(id));
                 setIsFollowing(following.includes(String(data.user._id)));
               }
             }
           } catch { }
-        } catch (err: any) {
-          setError(err.message);
+        } catch (err: unknown) {
+          if (err instanceof Error) {
+            setError(err.message);
+          } else {
+            setError('An unexpected error occurred');
+          }
         } finally {
           setIsLoading(false);
         }
@@ -97,9 +101,7 @@ export default function UserProfilePage() {
                 </Avatar>
                 <div>
                   <h1 className="text-2xl font-bold">{profileUser.username}</h1>
-                  <p className="text-sm text-muted-foreground">
-                    Joined on {new Date(profileUser.createdAt).toLocaleDateString()}
-                  </p>
+                  <p className="text-sm text-muted-foreground">Let&apos;s connect and collaborate!</p>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -165,9 +167,9 @@ export default function UserProfilePage() {
             </FadeIn>
           ))
         ) : (
-          <p className="text-muted-foreground">This user hasn't posted anything yet.</p>
+          <p className="text-muted-foreground">This user hasn&apos;t posted anything yet.</p>", "StartLine": 170, "TargetContent": "          <p className=\"text-muted-foreground\">This user hasn't posted anything yet.</p>
         )}
-      </div>
     </div>
+    </div >
   );
 }

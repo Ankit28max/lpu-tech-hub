@@ -106,8 +106,8 @@ export default function NotificationsPage() {
                             <Link href={notification.link}>
                                 <Card
                                     className={`border-none shadow-sm hover:shadow-md transition-all cursor-pointer ${notification.read
-                                            ? 'bg-white/30 dark:bg-zinc-900/30'
-                                            : 'bg-white/70 dark:bg-zinc-900/70 ring-2 ring-indigo-500/20'
+                                        ? 'bg-white/30 dark:bg-zinc-900/30'
+                                        : 'bg-white/70 dark:bg-zinc-900/70 ring-2 ring-indigo-500/20'
                                         } backdrop-blur-sm`}
                                 >
                                     <CardContent className="p-4">
@@ -137,9 +137,7 @@ export default function NotificationsPage() {
                     <Card className="text-center p-12">
                         <Bell className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
                         <h3 className="text-xl font-bold mb-2">No notifications yet</h3>
-                        <p className="text-muted-foreground">
-                            When you get notifications, they'll show up here.
-                        </p>
+                        <p className="text-muted-foreground">When you get notifications, they&apos;ll show up here.</p>
                     </Card>
                 )}
             </FadeIn>
