@@ -14,19 +14,19 @@ const getUserIdFromToken = (request: NextRequest): string | null => {
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { postId: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ postId: string }> }) {
   await dbConnect();
   const userId = getUserIdFromToken(request);
   if (!userId) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-  const { postId } = params;
+  const { postId } = await params;
   try {
     const post = await Post.findById(postId);
     if (!post) return NextResponse.json({ message: 'Post not found' }, { status: 404 });
-    const hasReposted = post.reposts.some((id: any) => String(id) === String(userId));
+    const hasReposted = post.reposts.some((id: unknown) => String(id) === String(userId));
     if (hasReposted) {
-      post.reposts = post.reposts.filter((id: any) => String(id) !== String(userId));
+      post.reposts = post.reposts.filter((id: unknown) => String(id) !== String(userId));
     } else {
-      post.reposts.push(userId as any);
+      post.reposts.push(userId as unknown as import('mongoose').Types.ObjectId);
     }
     await post.save();
     return NextResponse.json({ reposts: post.reposts.length, reposted: !hasReposted }, { status: 200 });

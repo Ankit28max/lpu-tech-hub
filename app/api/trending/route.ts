@@ -5,7 +5,7 @@ import PostModel from "@/models/Post";
 
 export async function GET(request: NextRequest) {
     await dbConnect();
-    
+
     try {
         // Get trending hashtags from posts
         const posts = await PostModel.find({})
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
         const hashtagCounts: { [key: string]: number } = {};
         posts.forEach(post => {
             if (post.tags) {
-                post.tags.forEach(tag => {
+                post.tags.forEach((tag: string) => {
                     hashtagCounts[tag] = (hashtagCounts[tag] || 0) + 1;
                 });
             }
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
             { $limit: 5 }
         ]);
 
-        return NextResponse.json({ 
+        return NextResponse.json({
             trendingTopics,
             categoryStats: categoryStats.map(stat => ({
                 category: stat._id || 'general',

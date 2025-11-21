@@ -14,11 +14,11 @@ const getUserIdFromToken = (request: NextRequest): string | null => {
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { userId: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ username: string }> }) {
   await dbConnect();
   const meId = getUserIdFromToken(request);
   if (!meId) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-  const { userId } = params;
+  const { username: userId } = await params;
   if (meId === userId) return NextResponse.json({ message: 'Cannot follow yourself' }, { status: 400 });
 
   try {
@@ -26,10 +26,10 @@ export async function PUT(request: NextRequest, { params }: { params: { userId: 
     const target = await User.findById(userId);
     if (!me || !target) return NextResponse.json({ message: 'User not found' }, { status: 404 });
 
-    const isFollowing = me.following?.some((id: any) => String(id) === String(userId));
+    const isFollowing = me.following?.some((id: unknown) => String(id) === String(userId));
     if (isFollowing) {
-      me.following = (me.following || []).filter((id: any) => String(id) !== String(userId));
-      target.followers = (target.followers || []).filter((id: any) => String(id) !== String(meId));
+      me.following = (me.following || []).filter((id: unknown) => String(id) !== String(userId));
+      target.followers = (target.followers || []).filter((id: unknown) => String(id) !== String(meId));
     } else {
       me.following = [...(me.following || []), target._id];
       target.followers = [...(target.followers || []), me._id];

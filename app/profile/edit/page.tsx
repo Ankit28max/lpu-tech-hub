@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface ProfileData {
-    username: string;
+  username: string;
   bio: string;
   isAcceptingMentees: boolean;
   mentorshipSkills: string[];
@@ -13,7 +13,7 @@ interface ProfileData {
 
 export default function EditProfilePage() {
   const [formData, setFormData] = useState<ProfileData>({
-     username: '',
+    username: '',
     bio: '',
     isAcceptingMentees: false,
     mentorshipSkills: [],
@@ -23,7 +23,7 @@ export default function EditProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  
+
   // Fetch current profile data
   useEffect(() => {
     const fetchProfile = async () => {
@@ -37,19 +37,23 @@ export default function EditProfilePage() {
       }
       try {
         const response = await fetch('/api/profile', {
-            headers: {'Authorization': `Bearer ${token}`}
+          headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!response.ok) throw new Error('Failed to fetch profile data.');
         const data = await response.json();
         setFormData({
-            username: data.user.username || '',
-            bio: data.user.bio || '',
-            isAcceptingMentees: data.user.isAcceptingMentees || false,
-            mentorshipSkills: data.user.mentorshipSkills || [],
+          username: data.user.username || '',
+          bio: data.user.bio || '',
+          isAcceptingMentees: data.user.isAcceptingMentees || false,
+          mentorshipSkills: data.user.mentorshipSkills || [],
         });
         setSkillsInput(data.user.mentorshipSkills.join(', '));
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError('An unexpected error occurred');
+        }
       } finally {
         setIsLoading(false);
       }
@@ -61,7 +65,7 @@ export default function EditProfilePage() {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
-  
+
   const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({ ...prev, isAcceptingMentees: e.target.checked }));
   };
@@ -89,8 +93,12 @@ export default function EditProfilePage() {
         throw new Error(data.message || 'Failed to update profile.');
       }
       router.push(`/profile/${formData.username}`); // Redirect to their own profile page after update
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('An unexpected error occurred');
+      }
     } finally {
       setIsSaving(false);
     }

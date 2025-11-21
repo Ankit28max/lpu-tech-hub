@@ -42,8 +42,12 @@ export default function NewProjectPage() {
       // Redirect to the projects page on success
       router.push('/projects');
 
-    } catch (error: any) {
-      setError(error.message);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        setError('An unexpected error occurred');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -101,7 +105,7 @@ export default function NewProjectPage() {
           </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
-          
+
           <div>
             <button
               type="submit"

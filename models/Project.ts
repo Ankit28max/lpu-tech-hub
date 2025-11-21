@@ -1,17 +1,7 @@
 // models/Project.ts
-import mongoose, { Schema, Document } from 'mongoose';
-import { IUser } from './User';
+import mongoose, { Schema, Document, InferSchemaType } from 'mongoose';
 
-export interface IProject extends Document {
-  title: string;
-  description: string;
-  owner: IUser['_id'];
-  requiredSkills: string[];
-  status: 'open' | 'closed';
-  createdAt: Date;
-}
-
-const ProjectSchema: Schema = new Schema({
+const ProjectSchema = new Schema({
   title: {
     type: String,
     required: [true, 'Project title is required.'],
@@ -40,5 +30,7 @@ const ProjectSchema: Schema = new Schema({
     default: Date.now,
   },
 });
+
+export type IProject = InferSchemaType<typeof ProjectSchema> & Document;
 
 export default mongoose.models.Project || mongoose.model<IProject>('Project', ProjectSchema);

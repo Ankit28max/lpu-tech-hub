@@ -42,8 +42,12 @@ export default function CreatePostForm({ onPostCreated }: CreatePostFormProps) {
       setContent(''); // Clear the textarea
       onPostCreated(); // Refresh the feed
 
-    } catch (error: any) {
-      setError(error.message);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        setError('An unexpected error occurred');
+      }
     } finally {
       setIsLoading(false);
     }

@@ -1,21 +1,7 @@
 // models/User.ts
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose, { Schema, Document, InferSchemaType } from 'mongoose';
 
-// Updated interface to include the new fields
-export interface IUser extends Document {
-  username: string;
-  email: string;
-  passwordHash: string;
-  role: 'student' | 'admin';
-  createdAt: Date;
-  bio?: string;
-  isAcceptingMentees: boolean;
-  mentorshipSkills: string[];
-  followers?: mongoose.Types.ObjectId[];
-  following?: mongoose.Types.ObjectId[];
-}
-
-const UserSchema: Schema = new Schema({
+const UserSchema = new Schema({
   username: {
     type: String,
     required: [true, 'Please provide a username.'],
@@ -58,5 +44,7 @@ const UserSchema: Schema = new Schema({
   followers: [{ type: Schema.Types.ObjectId, ref: 'User' }],
   following: [{ type: Schema.Types.ObjectId, ref: 'User' }],
 });
+
+export type IUser = InferSchemaType<typeof UserSchema> & Document;
 
 export default mongoose.models.User || mongoose.model<IUser>('User', UserSchema);

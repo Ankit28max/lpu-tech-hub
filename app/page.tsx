@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { TypewriterEffectSmooth } from '@/components/ui/typewriter-effect';
 import { BentoGrid, BentoGridItem } from '@/components/ui/bento-grid';
 import { AnimatedTooltip } from '@/components/ui/animated-tooltip';
+import { AuroraBackground } from '@/components/ui/aurora-background';
 import { Lightbulb, Users, Rocket } from 'lucide-react'; // Icons for features
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FadeIn } from '@/components/ui/fade-in';
@@ -17,10 +18,10 @@ import { FadeIn } from '@/components/ui/fade-in';
 
 const HeroSection = () => {
     const typewriterWords = [
-        { text: "Connect." },
-        { text: "Collaborate." },
-        { text: "Create." },
-        { text: "Succeed.", className: "text-indigo-500" },
+        { text: "Connect.", className: "text-zinc-900 dark:text-zinc-100" },
+        { text: "Collaborate.", className: "text-zinc-900 dark:text-zinc-100" },
+        { text: "Create.", className: "text-zinc-900 dark:text-zinc-100" },
+        { text: "Succeed.", className: "text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 dark:from-indigo-400 dark:via-purple-400 dark:to-pink-400" },
     ];
     const community = [
         { id: 1, name: "Aarav", designation: "Full‑stack", image: "https://api.dicebear.com/7.x/thumbs/svg?seed=Aarav" },
@@ -30,13 +31,8 @@ const HeroSection = () => {
         { id: 5, name: "Zoya", designation: "Web3", image: "https://api.dicebear.com/7.x/thumbs/svg?seed=Zoya" },
     ];
     return (
-        <section className="relative flex flex-col items-center justify-center text-center pt-24 pb-24 overflow-hidden">
-            {/* Animated grid background */}
-            <div className="pointer-events-none absolute inset-0">
-                <div className="absolute inset-0 [background-size:40px_40px] [background-image:linear-gradient(to_right,rgba(148,163,184,0.15)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.15)_1px,transparent_1px)] dark:[background-image:linear-gradient(to_right,rgba(38,38,38,0.6)_1px,transparent_1px),linear-gradient(to_bottom,rgba(38,38,38,0.6)_1px,transparent_1px)]" />
-                <div className="absolute inset-0 bg-white [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)] dark:bg-black" />
-            </div>
-            <div className="relative z-10">
+        <AuroraBackground className="pt-20 pb-20">
+            <div className="relative z-10 flex flex-col items-center justify-center text-center">
                 <FadeIn>
                     <TypewriterEffectSmooth words={typewriterWords} />
                 </FadeIn>
@@ -51,7 +47,7 @@ const HeroSection = () => {
                     </div>
                 </FadeIn>
             </div>
-        </section>
+        </AuroraBackground>
     );
 };
 
@@ -68,19 +64,18 @@ const FeatureGrid = () => {
                 <h2 className="text-center text-3xl font-bold mb-3">Everything You Need In One Place</h2>
                 <p className="mx-auto mb-8 max-w-2xl text-center text-muted-foreground">Discover peers, mentors, and real projects. Learn in public and build a portfolio employers love.</p>
             </FadeIn>
-            <FadeIn delay={0.1}>
-                <BentoGrid className="max-w-4xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
                 {features.map((feature, i) => (
-                    <BentoGridItem
-                    key={i}
-                    title={feature.title}
-                    description={feature.description}
-                    header={<div className="flex h-16 w-16 items-center justify-center rounded-lg bg-muted">{feature.icon}</div>}
-                    className={feature.className}
-                    />
+                    <FadeIn key={i} delay={i * 0.1} direction={i % 2 === 0 ? "left" : "right"} className={feature.className}>
+                        <BentoGridItem
+                            title={feature.title}
+                            description={feature.description}
+                            header={<div className="flex h-16 w-16 items-center justify-center rounded-lg bg-muted">{feature.icon}</div>}
+                            className="h-full"
+                        />
+                    </FadeIn>
                 ))}
-                </BentoGrid>
-            </FadeIn>
+            </div>
         </section>
     );
 };
@@ -149,44 +144,52 @@ const TestimonialsSection = () => {
 
 const CallToActionSection = () => (
     <section className="container mx-auto text-center py-20">
-        <h2 className="text-4xl font-bold mb-4">Ready to Join the Hub?</h2>
-        <p className="text-muted-foreground mb-8">Create your profile and start connecting today.</p>
-        <Link href="/register">
-            <Button size="lg">Sign Up Now</Button>
-        </Link>
+        <FadeIn>
+            <h2 className="text-4xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 dark:from-indigo-400 dark:via-purple-400 dark:to-pink-400">
+                Ready to Join the Hub?
+            </h2>
+            <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
+                Create your profile, showcase your projects, and start connecting with the best tech minds at LPU today.
+            </p>
+            <Link href="/register">
+                <Button size="lg" className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-lg border-0">
+                    Sign Up Now
+                </Button>
+            </Link>
+        </FadeIn>
     </section>
 );
 
 
 // --- Main Page Component ---
 export default function LandingPage() {
-  const { user, isLoading } = useAuth();
-  const router = useRouter();
+    const { user, isLoading } = useAuth();
+    const router = useRouter();
 
-  useEffect(() => {
-    if (!isLoading && user) {
-      router.push('/feed');
+    useEffect(() => {
+        if (!isLoading && user) {
+            router.push('/feed');
+        }
+    }, [user, isLoading, router]);
+
+    if (isLoading || user) {
+        return (
+            <div className="flex justify-center items-center min-h-screen">
+                <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-indigo-500"></div>
+            </div>
+        );
     }
-  }, [user, isLoading, router]);
 
-  if (isLoading || user) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-indigo-500"></div>
-      </div>
+        <div className="min-h-screen bg-background text-foreground">
+            <main>
+                <HeroSection />
+                <PartnersSection />
+                <FeatureGrid />
+                <StatsSection />
+                <TestimonialsSection />
+                <CallToActionSection />
+            </main>
+        </div>
     );
-  }
-
-  return (
-    <div className="min-h-screen bg-background text-foreground">
-      <main>
-        <HeroSection />
-        <PartnersSection />
-        <FeatureGrid />
-        <StatsSection />
-        <TestimonialsSection />
-        <CallToActionSection />
-      </main>
-    </div>
-  );
 }

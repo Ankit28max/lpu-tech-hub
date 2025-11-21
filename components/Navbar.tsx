@@ -8,20 +8,26 @@ import { usePathname } from 'next/navigation';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Badge } from './ui/badge';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuLabel, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
+import { ModeToggle } from './mode-toggle';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
 } from './ui/dropdown-menu';
-import { 
-  Sheet, 
-  SheetContent, 
-  SheetHeader, 
-  SheetTitle, 
-  SheetTrigger 
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from './ui/popover';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger
 } from './ui/sheet';
 import {
   Dialog,
@@ -38,18 +44,21 @@ import {
   CommandItem,
   CommandList,
 } from './ui/command';
-import { 
-  Home, 
-  FolderOpen, 
-  Users, 
-  MessageSquare, 
-  User, 
-  LogOut, 
-  Menu, 
+import {
+  Home,
+  FolderOpen,
+  Users,
+  MessageSquare,
+  User,
+  LogOut,
+  Menu,
   Settings,
   Bell,
   Search,
-  Zap
+  Zap,
+  Heart,
+  MessageCircle,
+  UserPlus
 } from 'lucide-react';
 
 export default function Navbar() {
@@ -57,6 +66,7 @@ export default function Navbar() {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
   // Navigation items
   const navItems = [
@@ -90,7 +100,7 @@ export default function Navbar() {
   // If we are on the landing page AND the user is logged out, render the simple header.
   if (pathname === '/' && !user) {
     return (
-      <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+      <header className="sticky top-0 z-50 w-full border-b bg-white/70 backdrop-blur-md supports-[backdrop-filter]:bg-white/40 dark:bg-background/70 dark:supports-[backdrop-filter]:bg-background/40 transition-all duration-300">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center space-x-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500">
@@ -101,6 +111,7 @@ export default function Navbar() {
             </h1>
           </div>
           <div className="flex items-center space-x-2">
+            <ModeToggle />
             <Link href="/login">
               <Button variant="ghost" className="hover:bg-blue-50 hover:text-blue-600">
                 Login
@@ -119,7 +130,7 @@ export default function Navbar() {
 
   // For all other pages, or if the user is logged in, render the full application navbar.
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 shadow-sm">
+    <header className="sticky top-0 z-50 w-full border-b bg-white/70 backdrop-blur-md supports-[backdrop-filter]:bg-white/40 dark:bg-background/70 dark:supports-[backdrop-filter]:bg-background/40 shadow-sm transition-all duration-300">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         {/* Logo */}
         <div className="flex items-center space-x-2">
@@ -143,11 +154,10 @@ export default function Navbar() {
                 <Link key={item.href} href={item.href}>
                   <Button
                     variant={isActive ? "default" : "ghost"}
-                    className={`flex items-center space-x-2 ${
-                      isActive 
-                        ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg" 
-                        : "hover:bg-blue-50 hover:text-blue-600"
-                    }`}
+                    className={`flex items-center space-x-2 ${isActive
+                      ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg"
+                      : "hover:bg-blue-50 hover:text-blue-600"
+                      }`}
                   >
                     <Icon className="h-4 w-4" />
                     <span>{item.label}</span>
@@ -161,6 +171,7 @@ export default function Navbar() {
         {/* Right side - User menu and notifications */}
         {user && (
           <div className="flex items-center space-x-2">
+            <ModeToggle />
             {/* Search Button */}
             <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
               <DialogTrigger asChild>
@@ -194,12 +205,81 @@ export default function Navbar() {
             </Dialog>
 
             {/* Notifications */}
-            <Button variant="ghost" size="icon" className="relative hover:bg-blue-50 hover:text-blue-600">
-              <Bell className="h-4 w-4" />
-              <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-xs text-white">
-                3
-              </Badge>
-            </Button>
+            <Popover open={isNotificationsOpen} onOpenChange={setIsNotificationsOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="relative hover:bg-blue-50 hover:text-blue-600">
+                  <Bell className="h-4 w-4" />
+                  <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-xs text-white flex items-center justify-center p-0">
+                    3
+                  </Badge>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-0" align="end">
+                <div className="flex items-center justify-between border-b px-4 py-3">
+                  <h3 className="font-semibold">Notifications</h3>
+                  <Button variant="ghost" size="sm" className="h-auto p-0 text-xs text-blue-600 hover:text-blue-700">
+                    Mark all as read
+                  </Button>
+                </div>
+                <div className="max-h-[400px] overflow-y-auto">
+                  {/* Mock Notifications */}
+                  <div className="divide-y">
+                    <Link
+                      href="/feed"
+                      onClick={() => setIsNotificationsOpen(false)}
+                      className="flex gap-3 p-4 hover:bg-muted/50 cursor-pointer transition-colors"
+                    >
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/20">
+                        <Heart className="h-5 w-5 text-red-600 dark:text-red-400" />
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <p className="text-sm">
+                          <span className="font-semibold">John Doe</span> liked your post
+                        </p>
+                        <p className="text-xs text-muted-foreground">2 hours ago</p>
+                      </div>
+                    </Link>
+                    <Link
+                      href="/projects"
+                      onClick={() => setIsNotificationsOpen(false)}
+                      className="flex gap-3 p-4 hover:bg-muted/50 cursor-pointer transition-colors"
+                    >
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/20">
+                        <MessageCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <p className="text-sm">
+                          <span className="font-semibold">Jane Smith</span> commented on your project
+                        </p>
+                        <p className="text-xs text-muted-foreground">5 hours ago</p>
+                      </div>
+                    </Link>
+                    <Link
+                      href="/feed"
+                      onClick={() => setIsNotificationsOpen(false)}
+                      className="flex gap-3 p-4 hover:bg-muted/50 cursor-pointer transition-colors"
+                    >
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/20">
+                        <UserPlus className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <p className="text-sm">
+                          <span className="font-semibold">Mike Johnson</span> started following you
+                        </p>
+                        <p className="text-xs text-muted-foreground">1 day ago</p>
+                      </div>
+                    </Link>
+                  </div>
+                </div>
+                <div className="border-t p-2">
+                  <Link href="/notifications" onClick={() => setIsNotificationsOpen(false)}>
+                    <Button variant="ghost" className="w-full text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50">
+                      View all notifications
+                    </Button>
+                  </Link>
+                </div>
+              </PopoverContent>
+            </Popover>
 
             {/* User Dropdown */}
             <DropdownMenu>
@@ -265,11 +345,10 @@ export default function Navbar() {
                       <Link key={item.href} href={item.href} onClick={() => setIsMobileMenuOpen(false)}>
                         <Button
                           variant={isActive ? "default" : "ghost"}
-                          className={`w-full justify-start ${
-                            isActive 
-                              ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white" 
-                              : "hover:bg-blue-50 hover:text-blue-600"
-                          }`}
+                          className={`w-full justify-start ${isActive
+                            ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white"
+                            : "hover:bg-blue-50 hover:text-blue-600"
+                            }`}
                         >
                           <Icon className="mr-2 h-4 w-4" />
                           <span>{item.label}</span>

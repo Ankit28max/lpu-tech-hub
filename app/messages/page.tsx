@@ -71,7 +71,7 @@ export default function MessagesPage() {
       await loadConversations();
       try {
         wsRef.current?.send(JSON.stringify({ type: 'message', conversationId: activeConversationId }));
-      } catch {}
+      } catch { }
     }
   };
 
@@ -116,14 +116,14 @@ export default function MessagesPage() {
     wsRef.current = ws;
     // identify this user to server for presence
     ws.onopen = () => {
-      try { ws.send(JSON.stringify({ type: 'init', userId: user._id })); } catch {}
+      try { ws.send(JSON.stringify({ type: 'init', userId: user._id })); } catch { }
     };
     ws.onmessage = async (event) => {
       try {
         const payload = JSON.parse(event.data);
         if (payload.type === 'message') {
           await loadConversations();
-          if (payload.conversationId && payload.conversationId === activeConversationId) {
+          if (payload.conversationId && activeConversationId && payload.conversationId === activeConversationId) {
             await loadThread(activeConversationId);
           }
         }
@@ -134,11 +134,11 @@ export default function MessagesPage() {
           setIsTyping(true);
           setTimeout(() => setIsTyping(false), 1200);
         }
-      } catch {}
+      } catch { }
     };
     ws.onclose = () => { wsRef.current = null; };
     return () => {
-      try { ws.close(); } catch {}
+      try { ws.close(); } catch { }
       wsRef.current = null;
     };
   }, [user, activeConversationId]);
@@ -218,7 +218,7 @@ export default function MessagesPage() {
                   if (wsRef.current && activeConversationId) {
                     wsRef.current.send(JSON.stringify({ type: 'typing', conversationId: activeConversationId, userId: user._id }));
                   }
-                } catch {}
+                } catch { }
               }} placeholder="Type a message..." className="h-10 resize-none" />
               <Button onClick={sendMessage} disabled={!activeConversationId || !message.trim()}>Send</Button>
             </div>

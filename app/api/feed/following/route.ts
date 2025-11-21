@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   if (!meId) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   try {
     const me = await User.findById(meId).select('following');
-    const followingIds = (me?.following || []).map((id: any) => id);
+    const followingIds = (me?.following || []).map((id: unknown) => id);
     const posts = await Post.find({ author: { $in: followingIds } })
       .populate('author', 'username')
       .populate({ path: 'comments', populate: { path: 'author', select: 'username' } })

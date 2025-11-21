@@ -5,19 +5,20 @@ import PostModel from "@/models/Post";
 import jwt, { JwtPayload } from 'jsonwebtoken';
 
 const getUserIdFromToken = (request: NextRequest): string | null => {
-    const token = request.headers.get("authorization")?.split(" ")[1] || "";
-    if (!token) return null;
-    try {
-        const decodedToken = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
-        return decodedToken.userId;
-    } catch (error) { return null; }
+  const token = request.headers.get("authorization")?.split(" ")[1] || "";
+  if (!token) return null;
+  try {
+    const decodedToken = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
+    return decodedToken.userId;
+  } catch (error) { return null; }
 }
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { postId: string } }
+  { params }: { params: Promise<{ postId: string }> }
 ) {
   await dbConnect();
+  const { postId } = await params;
   try {
     const userId = getUserIdFromToken(request);
     if (!userId) {
@@ -26,18 +27,18 @@ export async function POST(
 
     const { content } = await request.json();
     if (!content) {
-        return NextResponse.json({ message: "Comment content is required" }, { status: 400 });
+      return NextResponse.json({ message: "Comment content is required" }, { status: 400 });
     }
 
-    const post = await PostModel.findById(params.postId);
+    const post = await PostModel.findById(postId);
     if (!post) {
       return NextResponse.json({ message: "Post not found" }, { status: 404 });
     }
 
     const newComment = {
-        content,
-        author: userId,
-        createdAt: new Date(),
+      content,
+      author: userId,
+      createdAt: new Date(),
     };
 
     post.comments.push(newComment);

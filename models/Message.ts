@@ -1,14 +1,6 @@
-import mongoose, { Schema, Document, Types } from 'mongoose';
+import mongoose, { Schema, Document, InferSchemaType } from 'mongoose';
 
-export interface IMessage extends Document {
-  conversation: Types.ObjectId;
-  sender: Types.ObjectId;
-  recipient: Types.ObjectId;
-  content: string;
-  createdAt: Date;
-}
-
-const MessageSchema: Schema = new Schema({
+const MessageSchema = new Schema({
   conversation: { type: Schema.Types.ObjectId, ref: 'Conversation', required: true },
   sender: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   recipient: { type: Schema.Types.ObjectId, ref: 'User', required: true },
@@ -17,6 +9,8 @@ const MessageSchema: Schema = new Schema({
 });
 
 MessageSchema.index({ conversation: 1, createdAt: -1 });
+
+export type IMessage = InferSchemaType<typeof MessageSchema> & Document;
 
 export default mongoose.models.Message || mongoose.model<IMessage>('Message', MessageSchema);
 

@@ -1,31 +1,13 @@
 // models/Post.ts
-import mongoose, { Schema, Document } from 'mongoose';
-import { IUser } from './User';
+import mongoose, { Schema, Document, InferSchemaType } from 'mongoose';
 
-const CommentSchema: Schema = new Schema({
-    content: { type: String, required: true },
-    author: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    createdAt: { type: Date, default: Date.now }
+const CommentSchema = new Schema({
+  content: { type: String, required: true },
+  author: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  createdAt: { type: Date, default: Date.now }
 });
 
-
-export interface IPost extends Document {
-  content: string;
-  author: IUser['_id'];
-  createdAt: Date;
-  likes: IUser['_id'][]; 
-  reposts: IUser['_id'][];
-  comments: { 
-    content: string;
-    author: IUser['_id'];
-    createdAt: Date;
-  }[];
-  category?: string;
-  tags?: string[];
-  imageUrl?: string;
-}
-
-const PostSchema: Schema = new Schema({
+const PostSchema = new Schema({
   content: {
     type: String,
     required: [true, 'Post content cannot be empty.'],
@@ -47,7 +29,7 @@ const PostSchema: Schema = new Schema({
     ref: 'User',
   }],
   // -----------------
-   comments: [CommentSchema],
+  comments: [CommentSchema],
   category: {
     type: String,
     default: 'general',
@@ -64,5 +46,7 @@ const PostSchema: Schema = new Schema({
     default: Date.now,
   },
 });
+
+export type IPost = InferSchemaType<typeof PostSchema> & Document;
 
 export default mongoose.models.Post || mongoose.model<IPost>('Post', PostSchema);

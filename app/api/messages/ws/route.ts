@@ -1,5 +1,6 @@
 export const runtime = 'edge';
 // Edge runtime uses Deno; declare for TypeScript
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const Deno: any;
 
 // In-memory hub: track clients and online counts per user
@@ -85,13 +86,13 @@ export async function GET(req: Request) {
         userCounts.set(userId, next);
       }
     }
-    try { socket.close(); } catch {}
+    try { socket.close(); } catch { }
   };
 
   function broadcast(data: string, exclude?: WebSocket) {
     for (const client of clients.keys()) {
       if (client === exclude) continue;
-      try { client.send(data); } catch {}
+      try { client.send(data); } catch { }
     }
   }
 

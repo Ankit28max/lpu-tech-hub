@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   if (!meId) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   try {
     const me = await User.findById(meId).select('following');
-    const exclude = new Set([String(meId), ...(me?.following || []).map((id: any) => String(id))]);
+    const exclude = new Set([String(meId), ...(me?.following || []).map((id: unknown) => String(id))]);
     const suggestions = await User.find({ _id: { $nin: Array.from(exclude) } })
       .select('username')
       .limit(8);
