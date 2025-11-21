@@ -91,7 +91,7 @@ const StatsSection = () => {
             <FadeIn>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     {stats.map((s) => (
-                        <Card key={s.label}>
+                        <Card key={s.label} className="glass-card border-none">
                             <CardHeader>
                                 <CardTitle className="text-4xl font-bold">{s.value}</CardTitle>
                                 <CardDescription>{s.label}</CardDescription>
@@ -114,7 +114,7 @@ const PartnersSection = () => {
             <FadeIn delay={0.1}>
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-6">
                     {partners.map((p) => (
-                        <div key={p} className="flex items-center justify-center rounded-md border bg-background py-6 text-sm font-semibold text-muted-foreground">
+                        <div key={p} className="flex items-center justify-center rounded-md glass-card border-none py-6 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors">
                             {p}
                         </div>
                     ))}

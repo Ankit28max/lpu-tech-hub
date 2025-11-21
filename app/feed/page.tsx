@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -263,8 +264,8 @@ function CreatePostForm({ onPostCreated, onOptimisticPost }: { onPostCreated: ()
               {previews.length > 0 && (
                 <div className="mb-3 grid grid-cols-2 gap-2">
                   {previews.map((src, i) => (
-                    <div key={i} className="relative rounded-xl overflow-hidden border shadow-sm group">
-                      <img src={src} alt="preview" className="w-full h-48 object-cover transition-transform group-hover:scale-105" />
+                    <div key={i} className="relative rounded-xl overflow-hidden border shadow-sm group h-48">
+                      <Image src={src} alt="preview" fill className="object-cover transition-transform group-hover:scale-105" />
                     </div>
                   ))}
                 </div>
@@ -551,7 +552,7 @@ function UserProfileCard() {
   if (!user) return null;
 
   return (
-    <Card>
+    <Card className="glass-card border-none">
       <CardHeader className="items-center text-center p-4">
         <Avatar className="h-20 w-20 mb-2">
           <AvatarImage src={`https://api.dicebear.com/7.x/pixel-art/svg?seed=${user.username}`} alt={user.username} />
@@ -590,7 +591,7 @@ function SuggestedMentors() {
   if (mentors.length === 0) return null;
 
   return (
-    <Card>
+    <Card className="glass-card border-none">
       <CardHeader>
         <CardTitle className="text-lg">Suggested Mentors</CardTitle>
       </CardHeader>
@@ -610,11 +611,17 @@ function SuggestedMentors() {
   );
 }
 
+import { motion, AnimatePresence } from "motion/react";
+import { Skeleton } from "@/components/ui/skeleton";
+
+// ... imports
+
 // --- Main Feed Page Component ---
 export default function FeedPage() {
   const { user } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // ... existing state
   const [activeCommentPostId, setActiveCommentPostId] = useState<string | null>(null);
   const { showToast, ToastContainer } = useToasts();
   const [isCmdOpen, setIsCmdOpen] = useState(false);
@@ -690,7 +697,7 @@ export default function FeedPage() {
     }, []);
 
     return (
-      <Card>
+      <Card className="glass-card border-none">
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-lg">Trending</CardTitle>
         </CardHeader>
@@ -772,11 +779,11 @@ export default function FeedPage() {
 
     if (!user) return null;
     return (
-      <Card>
+      <Card className="glass-card border-none">
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-lg">Who to follow</CardTitle>
         </CardHeader>
-        <CardContent className="p-4 pt-0 space-y-3">
+        <CardContent className="space-y-4 p-4 pt-0 space-y-3">
           {loading ? (
             <div className="space-y-2">
               {[...Array(3)].map((_, i) => (
@@ -871,6 +878,68 @@ export default function FeedPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  const handleDeletePost = async (postId: string) => {
+    if (!confirm('Are you sure you want to delete this post?')) return;
+    try {
+      const token = localStorage.getItem('authToken');
+      const res = await fetch(`/api/posts/${postId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setPosts((prev) => prev.filter((p) => p._id !== postId));
+        showToast('success', 'Post deleted');
+      } else {
+        showToast('error', 'Failed to delete post');
+      }
+    } catch {
+      showToast('error', 'Failed to delete post');
+    }
+  };
+
+  const handleVote = async (postId: string, optionId: string) => {
+    const token = localStorage.getItem('authToken');
+    if (!token) return;
+
+    // Optimistic update
+    setPosts(prev => prev.map(p => {
+      if (p._id !== postId || !p.poll) return p;
+      if (p.poll.hasVoted) return p; // prevent double vote locally
+
+      const newOptions = p.poll.options.map(o =>
+        o.id === optionId ? { ...o, votes: o.votes + 1 } : o
+      );
+      return {
+        ...p,
+        poll: {
+          ...p.poll,
+          options: newOptions,
+          totalVotes: (p.poll.totalVotes || 0) + 1,
+          hasVoted: true
+        }
+      };
+    }));
+
+    try {
+      const res = await fetch(`/api/posts/${postId}/vote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ optionId })
+      });
+      if (!res.ok) {
+        fetchPosts();
+        showToast('error', 'Failed to vote');
+      }
+    } catch {
+      fetchPosts();
+      showToast('error', 'Failed to vote');
+    }
+  };
+
+  const handleOptimisticPost = (tempPost: Post) => {
+    setPosts((prev) => [tempPost, ...prev]);
+  };
+
   const handleCommentClick = (postId: string) => {
     setActiveCommentPostId(activeCommentPostId === postId ? null : postId);
   };
@@ -903,9 +972,9 @@ export default function FeedPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-8 items-start">
 
         {/* --- Left Column (Vertical Tabs) --- */}
-        <aside className="col-span-1">
+        <aside className="hidden md:block col-span-1">
           <div className="sticky top-24 space-y-6">
-            <Card>
+            <Card className="glass-card border-none">
               <CardHeader className="p-4 pb-2">
                 <CardTitle className="text-lg">Feed</CardTitle>
               </CardHeader>
@@ -950,190 +1019,165 @@ export default function FeedPage() {
 
         {/* --- Middle Column (Main Feed) --- */}
         <main className="md:col-span-2">
-          <div className="z-10 bg-background border-b">
-            <div className="flex items-center gap-2 px-2 py-3">
-              <div className="flex items-center gap-1 rounded-full border p-1">
-                <Badge variant={activeFilter === 'latest' ? 'default' : 'outline'} className="cursor-pointer" onClick={() => setActiveFilter('latest')}>Latest</Badge>
-                <Badge variant={activeFilter === 'following' ? 'default' : 'outline'} className="cursor-pointer" onClick={() => setActiveFilter('following')}>Following</Badge>
-                <Badge variant={activeFilter === 'trending' ? 'default' : 'outline'} className="cursor-pointer" onClick={() => setActiveFilter('trending')}>Trending</Badge>
-                <Badge variant={activeFilter === 'media' ? 'default' : 'outline'} className="cursor-pointer" onClick={() => setActiveFilter('media')}>Media</Badge>
-                <Badge variant={activeFilter === 'polls' ? 'default' : 'outline'} className="cursor-pointer" onClick={() => setActiveFilter('polls')}>Polls</Badge>
-              </div>
-              <Button variant="outline" size="sm" className="ml-auto" onClick={() => setIsCmdOpen(true)}>Search / Cmd+K</Button>
-              <Sheet open={isComposeOpen} onOpenChange={setIsComposeOpen}>
-                <SheetTrigger asChild>
-                  <Button size="sm">Compose</Button>
-                </SheetTrigger>
-                <SheetContent side="bottom">
-                  <SheetHeader>
-                    <SheetTitle>Compose</SheetTitle>
-                  </SheetHeader>
-                  {user && (
-                    <div className="p-4 pt-0">
-                      <CreatePostForm
-                        onPostCreated={() => { setIsComposeOpen(false); fetchPosts(); }}
-                        onOptimisticPost={(temp) => setPosts((prev) => [temp, ...prev])}
-                      />
-                    </div>
-                  )}
-                </SheetContent>
-              </Sheet>
+          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b mb-4">
+            <div className="flex items-center gap-2 px-2 py-3 overflow-x-auto scrollbar-hide">
+              <Badge variant={activeFilter === 'latest' ? 'default' : 'outline'} className="cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors" onClick={() => setActiveFilter('latest')}>Latest</Badge>
+              <Badge variant={activeFilter === 'following' ? 'default' : 'outline'} className="cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors" onClick={() => setActiveFilter('following')}>Following</Badge>
+              <Badge variant={activeFilter === 'trending' ? 'default' : 'outline'} className="cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors" onClick={() => setActiveFilter('trending')}>Trending</Badge>
+              <Badge variant={activeFilter === 'media' ? 'default' : 'outline'} className="cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors" onClick={() => setActiveFilter('media')}>Media</Badge>
+              <Badge variant={activeFilter === 'polls' ? 'default' : 'outline'} className="cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors" onClick={() => setActiveFilter('polls')}>Polls</Badge>
             </div>
           </div>
-          <FadeIn>
+
+          <div className="space-y-6">
+            {/* Create Post */}
             {user && (
-              <CreatePostForm
-                onPostCreated={fetchPosts}
-                onOptimisticPost={(temp) => setPosts((prev) => [temp, ...prev])}
-              />
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+              >
+                <CreatePostForm onPostCreated={fetchPosts} onOptimisticPost={handleOptimisticPost} />
+              </motion.div>
             )}
-          </FadeIn>
-          <div className="space-y-4 mt-6">
-            {displayedPosts.length > 0 ? (
-              displayedPosts.map((post) => (
-                <FadeIn key={post._id}>
-                  <Card className="border-none shadow-sm hover:shadow-md transition-all duration-300 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm">
-                    <CardHeader className="p-5 pb-3">
-                      <div className="flex items-start gap-4">
-                        <Link href={`/profile/${post.author.username}`}>
-                          <Avatar className="h-12 w-12 ring-2 ring-offset-2 ring-indigo-500/20 transition-transform hover:scale-105 cursor-pointer">
-                            <AvatarImage src={`https://api.dicebear.com/7.x/pixel-art/svg?seed=${post.author.username}`} alt={post.author.username} />
-                            <AvatarFallback>{post.author.username.substring(0, 2).toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                        </Link>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <div className="flex flex-col">
-                              <Link href={`/profile/${post.author.username}`} className="font-bold text-lg hover:text-indigo-600 transition-colors">
-                                {post.author.username}
-                              </Link>
-                              <span className="text-xs text-muted-foreground font-medium" title={new Date(post.createdAt).toLocaleString()}>
-                                {getRelativeTime(new Date(post.createdAt)).text}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {user && user._id !== post.author._id && (
-                                <Button
-                                  size="sm"
-                                  variant={followingSet.has(post.author._id) ? 'secondary' : 'outline'}
-                                  className={`h-8 px-3 text-xs rounded-full transition-all ${followingSet.has(post.author._id) ? 'bg-zinc-100 dark:bg-zinc-800' : 'hover:border-indigo-500 hover:text-indigo-500'}`}
-                                  onClick={() => toggleFollowUser(post.author._id)}
-                                >
-                                  {followingSet.has(post.author._id) ? 'Following' : 'Follow'}
-                                </Button>
-                              )}
-                              <PostMenu
-                                isOwner={Boolean(user && user._id === post.author._id)}
-                                onDelete={async () => {
-                                  const token = localStorage.getItem('authToken');
-                                  try {
-                                    // Optimistic remove
-                                    setPosts((prev) => prev.filter((p) => p._id !== post._id));
-                                    const res = await fetch(`/api/posts/${post._id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-                                    if (!res.ok) throw new Error('Failed');
-                                    showToast('success', 'Post deleted');
-                                  } catch (e) {
-                                    console.error(e);
-                                    showToast('error', 'Failed to delete');
-                                    // Re-fetch to restore
-                                    fetchPosts();
-                                  }
-                                }}
-                              />
-                            </div>
-                          </div>
-                        </div>
+
+            {/* Posts List */}
+            <div className="space-y-4">
+              {isLoading ? (
+                // Skeleton Loading
+                [...Array(3)].map((_, i) => (
+                  <div key={i} className="space-y-3 p-4 border rounded-xl bg-card">
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-[150px]" />
+                        <Skeleton className="h-3 w-[100px]" />
                       </div>
-                    </CardHeader>
-                    <CardContent className="px-5 pb-3">
-                      <div className="text-[16px] leading-relaxed text-foreground/90 break-words whitespace-pre-wrap font-normal">
-                        <AutolinkContent text={post.content} />
-                      </div>
-                      {post.mediaUrls && post.mediaUrls.length > 0 && (
-                        <div className={`mt-4 grid gap-2 rounded-xl overflow-hidden ${post.mediaUrls.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                          {post.mediaUrls.slice(0, 4).map((src, i) => (
-                            <button key={i} className="relative overflow-hidden group bg-muted" onClick={() => setLightbox(src)}>
-                              <img src={src} alt="media" className="w-full h-64 object-cover transition-transform duration-500 group-hover:scale-105" />
-                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {post.poll && post.poll.options && post.poll.options.length > 0 && (
-                        <div className="mt-4 space-y-2 p-4 rounded-xl bg-muted/30 border border-border/50">
-                          {post.poll.options.map((opt) => {
-                            const total = post.poll?.totalVotes || (post.poll?.options ? post.poll.options.reduce((a, b) => a + (b.votes || 0), 0) : 0);
-                            const pct = total ? Math.round((opt.votes / total) * 100) : 0;
-                            return (
-                              <button
-                                key={opt.id}
-                                disabled={post.poll?.hasVoted}
-                                onClick={async () => {
-                                  // optimistic vote
-                                  setPosts((prev) => prev.map((p) => {
-                                    if (p._id !== post._id || !p.poll) return p;
-                                    const updated = { ...p, poll: { ...p.poll, hasVoted: true, options: p.poll.options.map(o => o.id === opt.id ? { ...o, votes: o.votes + 1 } : o) } };
-                                    return updated;
-                                  }));
-                                  try {
-                                    const token = localStorage.getItem('authToken');
-                                    await fetch(`/api/posts/${post._id}/poll`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ optionId: opt.id }) });
-                                  } catch {
-                                    fetchPosts();
-                                  }
-                                }}
-                                className="relative w-full text-left text-sm border rounded-lg px-4 py-3 hover:bg-muted/50 disabled:opacity-80 disabled:cursor-default overflow-hidden transition-all"
-                              >
-                                <div className="relative z-10 flex items-center justify-between font-medium">
-                                  <span>{opt.text}</span>
-                                  {total > 0 && <span>{pct}%</span>}
-                                </div>
-                                {total > 0 && (
-                                  <div className="absolute inset-0 bg-indigo-500/10 dark:bg-indigo-500/20 transition-all duration-500" style={{ width: `${pct}%` }} />
-                                )}
-                              </button>
-                            );
-                          })}
-                          {post.poll?.totalVotes !== undefined && (
-                            <div className="text-xs text-muted-foreground text-right font-medium">{post.poll.totalVotes} votes</div>
-                          )}
-                        </div>
-                      )}
-                    </CardContent>
-                    <CardFooter className="p-0 px-5 pb-4">
-                      <div className="w-full">
-                        <PostActions post={post} onCommentClick={() => handleCommentClick(post._id)} />
-                      </div>
-                    </CardFooter>
-                    {activeCommentPostId === post._id && (
-                      <CommentSection post={post} onCommentAdded={fetchPosts} />
-                    )}
-                  </Card>
-                </FadeIn>
-              ))
-            ) : (
-              <div className="text-center py-20 bg-muted/10 rounded-xl border border-dashed">
-                <div className="w-16 h-16 bg-muted rounded-full mx-auto mb-4 flex items-center justify-center">
-                  <Smile className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                    <Skeleton className="h-20 w-full" />
+                  </div>
+                ))
+              ) : displayedPosts.length === 0 ? (
+                <div className="text-center py-20 bg-muted/10 rounded-xl border border-dashed">
+                  <div className="w-16 h-16 bg-muted rounded-full mx-auto mb-4 flex items-center justify-center">
+                    <Smile className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-xl font-bold mb-2">No posts yet</h3>
+                  <p className="text-muted-foreground max-w-sm mx-auto">The feed is quiet. Be the first to share something amazing with the community!</p>
                 </div>
-                <h3 className="text-xl font-bold mb-2">No posts yet</h3>
-                <p className="text-muted-foreground max-w-sm mx-auto">The feed is quiet. Be the first to share something amazing with the community!</p>
-              </div>
-            )}
+              ) : (
+                <AnimatePresence mode="popLayout">
+                  {displayedPosts.map((post) => (
+                    <motion.div
+                      key={post._id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.3 }}
+                      layout
+                    >
+                      <Card className="glass-card border-none">
+                        <CardContent className="p-4">
+                          {/* Post Header */}
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="flex gap-3">
+                              <Link href={`/profile/${post.author.username}`}>
+                                <Avatar className="cursor-pointer hover:ring-2 hover:ring-indigo-500 transition-all">
+                                  <AvatarImage src={`https://api.dicebear.com/7.x/pixel-art/svg?seed=${post.author.username}`} />
+                                  <AvatarFallback>{post.author.username.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                </Avatar>
+                              </Link>
+                              <div>
+                                <Link href={`/profile/${post.author.username}`} className="font-semibold hover:underline">
+                                  {post.author.username}
+                                </Link>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground" title={getRelativeTime(new Date(post.createdAt)).title}>
+                                  {getRelativeTime(new Date(post.createdAt)).text}
+                                </div>
+                              </div>
+                            </div>
+                            <PostMenu isOwner={user?._id === post.author._id} onDelete={() => handleDeletePost(post._id)} />
+                          </div>
+
+                          {/* Post Content */}
+                          <div className="text-base mb-3 whitespace-pre-wrap break-words leading-relaxed">
+                            <AutolinkContent text={post.content} />
+                          </div>
+
+                          {/* Media Grid */}
+                          {post.mediaUrls && post.mediaUrls.length > 0 && (
+                            <div className={`grid gap-1 mb-3 rounded-xl overflow-hidden ${post.mediaUrls.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                              {post.mediaUrls.map((url, idx) => (
+                                <div key={idx} className="relative group cursor-pointer h-64" onClick={() => setLightbox(url)}>
+                                  <Image src={url} alt="Post media" fill className="object-cover transition-transform group-hover:scale-105" sizes="(max-width: 768px) 100vw, 50vw" />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Poll */}
+                          {post.poll && (
+                            <div className="mb-3 p-3 border rounded-xl bg-muted/30">
+                              {post.poll.options.map((opt) => {
+                                const total = post.poll!.totalVotes || 0;
+                                const percent = total > 0 ? Math.round((opt.votes / total) * 100) : 0;
+                                return (
+                                  <div key={opt.id} className="mb-2 last:mb-0">
+                                    <div className="flex justify-between text-sm mb-1">
+                                      <span>{opt.text}</span>
+                                      <span>{percent}%</span>
+                                    </div>
+                                    <div className="h-2 bg-muted rounded-full overflow-hidden cursor-pointer" onClick={() => handleVote(post._id, opt.id)}>
+                                      <motion.div
+                                        initial={{ width: 0 }}
+                                        animate={{ width: `${percent}%` }}
+                                        className="h-full bg-indigo-500"
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                              <div className="text-xs text-muted-foreground mt-2">{post.poll.totalVotes} votes</div>
+                            </div>
+                          )}
+
+                          {/* Actions */}
+                          <PostActions post={post} onCommentClick={() => setActiveCommentPostId(activeCommentPostId === post._id ? null : post._id)} />
+
+                          {/* Comments */}
+                          <AnimatePresence>
+                            {activeCommentPostId === post._id && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="overflow-hidden"
+                              >
+                                <CommentSection post={post} onCommentAdded={fetchPosts} />
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              )}
+            </div>
           </div>
         </main>
 
         {/* --- Right Column --- */}
-        <aside className="col-span-1">
+        <aside className="hidden md:block col-span-1">
           <div className="sticky top-24 space-y-6">
             <TrendingTopics />
             <SuggestedUsers />
             <SuggestedMentors />
           </div>
-        </aside>
-      </div>
+        </aside >
+      </div >
       {ToastContainer}
-      <CommandDialog open={isCmdOpen} onOpenChange={setIsCmdOpen}>
+      < CommandDialog open={isCmdOpen} onOpenChange={setIsCmdOpen} >
         <CommandInput placeholder="Search posts, people, tags..." />
         <CommandList>
           <CommandEmpty>No results found.</CommandEmpty>
@@ -1151,14 +1195,16 @@ export default function FeedPage() {
             <CommandItem onSelect={() => { setIsCmdOpen(false); setActiveFilter('polls'); }}>Show Polls<CommandShortcut>P</CommandShortcut></CommandItem>
           </CommandGroup>
         </CommandList>
-      </CommandDialog>
+      </CommandDialog >
       <Dialog open={Boolean(lightbox)} onOpenChange={(v) => !v && setLightbox(null)}>
         <DialogContent className="max-w-3xl">
           {lightbox && (
-            <img src={lightbox} alt="media" className="w-full h-auto rounded" />
+            <div className="relative w-full h-[80vh]">
+              <Image src={lightbox} alt="media" fill className="object-contain rounded" sizes="100vw" />
+            </div>
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
   );
 }

@@ -60,6 +60,7 @@ import {
   MessageCircle,
   UserPlus
 } from 'lucide-react';
+import { motion } from "motion/react";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -100,7 +101,12 @@ export default function Navbar() {
   // If we are on the landing page AND the user is logged out, render the simple header.
   if (pathname === '/' && !user) {
     return (
-      <header className="sticky top-0 z-50 w-full border-b bg-white/70 backdrop-blur-md supports-[backdrop-filter]:bg-white/40 dark:bg-background/70 dark:supports-[backdrop-filter]:bg-background/40 transition-all duration-300">
+      <motion.header
+        initial={{ y: -100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+        className="sticky top-0 z-50 w-full border-b bg-white/70 backdrop-blur-md supports-[backdrop-filter]:bg-white/40 dark:bg-background/70 dark:supports-[backdrop-filter]:bg-background/40 transition-all duration-300"
+      >
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center space-x-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500">
@@ -124,20 +130,28 @@ export default function Navbar() {
             </Link>
           </div>
         </div>
-      </header>
+      </motion.header>
     );
   }
 
   // For all other pages, or if the user is logged in, render the full application navbar.
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-white/70 backdrop-blur-md supports-[backdrop-filter]:bg-white/40 dark:bg-background/70 dark:supports-[backdrop-filter]:bg-background/40 shadow-sm transition-all duration-300">
+    <motion.header
+      initial={{ y: -100, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+      className="sticky top-0 z-50 w-full border-b bg-white/70 backdrop-blur-md supports-[backdrop-filter]:bg-white/40 dark:bg-background/70 dark:supports-[backdrop-filter]:bg-background/40 shadow-sm transition-all duration-300"
+    >
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         {/* Logo */}
         <div className="flex items-center space-x-2">
           <Link href="/feed" className="flex items-center space-x-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500">
+            <motion.div
+              whileHover={{ scale: 1.1, rotate: 10 }}
+              whileTap={{ scale: 0.9 }}
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500">
               <Zap className="h-5 w-5 text-white" />
-            </div>
+            </motion.div>
             <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
               LPU TechHub
             </span>
@@ -154,13 +168,21 @@ export default function Navbar() {
                 <Link key={item.href} href={item.href}>
                   <Button
                     variant={isActive ? "default" : "ghost"}
-                    className={`flex items-center space-x-2 ${isActive
+                    className={`flex items-center space-x-2 relative overflow-hidden ${isActive
                       ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg"
                       : "hover:bg-blue-50 hover:text-blue-600"
                       }`}
                   >
-                    <Icon className="h-4 w-4" />
-                    <span>{item.label}</span>
+                    <Icon className="h-4 w-4 relative z-10" />
+                    <span className="relative z-10">{item.label}</span>
+                    {isActive && (
+                      <motion.div
+                        layoutId="navbar-active"
+                        className="absolute inset-0 bg-gradient-to-r from-blue-500 to-indigo-500 z-0"
+                        initial={false}
+                        transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                      />
+                    )}
                   </Button>
                 </Link>
               );
@@ -372,6 +394,6 @@ export default function Navbar() {
           </div>
         )}
       </div>
-    </header>
+    </motion.header>
   );
 }

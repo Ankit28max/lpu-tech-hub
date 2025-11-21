@@ -1,13 +1,14 @@
 // app/layout.tsx
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Outfit } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import Navbar from "@/components/Navbar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { NextAuthProvider } from "@/components/NextAuthProvider";
+import { Analytics } from "@vercel/analytics/react";
 
-const inter = Inter({ subsets: ["latin"] });
+const outfit = Outfit({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "LPU TechHub",
@@ -21,7 +22,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body className={outfit.className}>
         <NextAuthProvider>
           <ThemeProvider
             attribute="class"
@@ -35,6 +36,7 @@ export default function RootLayout({
             </AuthProvider>
           </ThemeProvider>
         </NextAuthProvider>
+        <Analytics />
       </body>
     </html>
   );
