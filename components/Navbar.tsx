@@ -98,40 +98,9 @@ export default function Navbar() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // If we are on the landing page AND the user is logged out, render the simple header.
+  // If we are on the landing page AND the user is logged out, do not render the global navbar.
   if (pathname === '/' && !user) {
-    return (
-      <motion.header
-        initial={{ y: -100, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-        className="sticky top-0 z-50 w-full border-b bg-white/70 backdrop-blur-md supports-[backdrop-filter]:bg-white/40 dark:bg-background/70 dark:supports-[backdrop-filter]:bg-background/40 transition-all duration-300"
-      >
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <div className="flex items-center space-x-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500">
-              <Zap className="h-5 w-5 text-white" />
-            </div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              LPU TechHub
-            </h1>
-          </div>
-          <div className="flex items-center space-x-2">
-            <ModeToggle />
-            <Link href="/login">
-              <Button variant="ghost" className="hover:bg-blue-50 hover:text-blue-600">
-                Login
-              </Button>
-            </Link>
-            <Link href="/register">
-              <Button className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-lg">
-                Get Started
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </motion.header>
-    );
+    return null;
   }
 
   // For all other pages, or if the user is logged in, render the full application navbar.
