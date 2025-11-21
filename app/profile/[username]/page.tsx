@@ -101,7 +101,9 @@ export default function UserProfilePage() {
                 </Avatar>
                 <div>
                   <h1 className="text-2xl font-bold">{profileUser.username}</h1>
-                  <p className="text-sm text-muted-foreground">Let&apos;s connect and collaborate!</p>
+                  <p className="text-sm text-muted-foreground">
+                    Joined on {new Date(profileUser.createdAt).toLocaleDateString()}
+                  </p>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -167,9 +169,9 @@ export default function UserProfilePage() {
             </FadeIn>
           ))
         ) : (
-          <p className="text-muted-foreground">This user hasn&apos;t posted anything yet.</p>", "StartLine": 170, "TargetContent": "          <p className=\"text-muted-foreground\">This user hasn't posted anything yet.</p>
+          <p className="text-muted-foreground">This user hasn&apos;t posted anything yet.</p>
         )}
+      </div>
     </div>
-    </div >
   );
 }
