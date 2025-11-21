@@ -29,6 +29,7 @@ export default function MessagesPage() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [thread, setThread] = useState<MessageItem[]>([]);
   const [message, setMessage] = useState('');
+  const [sendingMessageId, setSendingMessageId] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -72,8 +73,9 @@ export default function MessagesPage() {
       createdAt: new Date().toISOString()
     };
 
-    // Add to UI immediately
+    // Add to UI immediately and track sending state
     setThread(prev => [...prev, optimisticMessage]);
+    setSendingMessageId(optimisticMessage._id);
     const sentMessage = message;
     setMessage('');
 
@@ -90,6 +92,7 @@ export default function MessagesPage() {
       setThread(prev => prev.map(m =>
         m._id === optimisticMessage._id ? { ...data.data, _id: data.data._id } : m
       ));
+      setSendingMessageId(null);
       // Update conversations list
       await loadConversations();
       // Broadcast via WebSocket to recipient
@@ -102,7 +105,40 @@ export default function MessagesPage() {
     } else {
       // Remove optimistic message on error
       setThread(prev => prev.filter(m => m._id !== optimisticMessage._id));
+      setSendingMessageId(null);
       setMessage(sentMessage); // Restore message
+    }
+  };
+
+  const deleteMessage = async (messageId: string) => {
+    if (!user) return;
+
+    // Optimistic delete
+    const messageToDelete = thread.find(m => m._id === messageId);
+    if (!messageToDelete || messageToDelete.sender !== user._id) return;
+
+    setThread(prev => prev.filter(m => m._id !== messageId));
+
+    // Send delete request
+    const res = await fetch(`/api/messages/${messageId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (!res.ok) {
+      // Restore message on error
+      setThread(prev => [...prev, messageToDelete].sort((a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      ));
+    } else {
+      // Broadcast deletion via WebSocket
+      try {
+        wsRef.current?.send(JSON.stringify({
+          type: 'delete',
+          conversationId: activeConversationId,
+          messageId
+        }));
+      } catch { }
     }
   };
 
@@ -162,6 +198,10 @@ export default function MessagesPage() {
           if (payload.conversationId && activeConversationId && payload.conversationId === activeConversationId) {
             await loadThread(activeConversationId);
           }
+        }
+        if (payload.type === 'delete' && payload.conversationId === activeConversationId) {
+          // Remove deleted message from thread
+          setThread(prev => prev.filter(m => m._id !== payload.messageId));
         }
         if (payload.type === 'presence' && activePartner && payload.userId === activePartner._id) {
           setIsPartnerOnline(!!payload.online);
@@ -238,9 +278,33 @@ export default function MessagesPage() {
             </div>
             <CardContent className="flex-1 overflow-y-auto space-y-3 p-4">
               {thread.map((m) => (
-                <div key={m._id} className={`max-w-[80%] rounded-lg px-3 py-2 ${m.sender === user._id ? 'bg-indigo-600 text-white ml-auto' : 'bg-gray-100 text-gray-900'}`}>
+                <div key={m._id} className={`max-w-[80%] rounded-lg px-3 py-2 relative group ${m.sender === user._id ? 'bg-indigo-600 text-white ml-auto' : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100'}`}>
+                  {/* Delete button - only show for own messages */}
+                  {m.sender === user._id && !m._id.startsWith('temp-') && (
+                    <button
+                      onClick={() => deleteMessage(m._id)}
+                      className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white rounded-full p-1 text-xs"
+                      title="Delete message"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  )}
                   <p>{m.content}</p>
-                  <p className="text-[10px] opacity-70 mt-1">{new Date(m.createdAt).toLocaleTimeString()}</p>
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-[10px] opacity-70">{new Date(m.createdAt).toLocaleTimeString()}</p>
+                    {/* Sending indicator */}
+                    {m._id === sendingMessageId && (
+                      <span className="text-[10px] opacity-70 flex items-center gap-1">
+                        <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Sending...
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
               {thread.length === 0 && (
@@ -249,14 +313,26 @@ export default function MessagesPage() {
               <div ref={messagesEndRef} />
             </CardContent>
             <div className="border-t p-3 flex items-center gap-2">
-              <Textarea ref={inputRef} value={message} onChange={(e) => {
-                setMessage(e.target.value);
-                try {
-                  if (wsRef.current && activeConversationId) {
-                    wsRef.current.send(JSON.stringify({ type: 'typing', conversationId: activeConversationId, userId: user._id }));
+              <Textarea
+                ref={inputRef}
+                value={message}
+                onChange={(e) => {
+                  setMessage(e.target.value);
+                  try {
+                    if (wsRef.current && activeConversationId) {
+                      wsRef.current.send(JSON.stringify({ type: 'typing', conversationId: activeConversationId, userId: user._id }));
+                    }
+                  } catch { }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
                   }
-                } catch { }
-              }} placeholder="Type a message..." className="h-10 resize-none" />
+                }}
+                placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
+                className="h-10 resize-none"
+              />
               <Button onClick={sendMessage} disabled={!activeConversationId || !message.trim()}>Send</Button>
             </div>
           </Card>
