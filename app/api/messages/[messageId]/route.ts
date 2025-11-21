@@ -17,13 +17,13 @@ const getUserIdFromToken = (request: NextRequest): string | null => {
 // DELETE /api/messages/[messageId] -> delete a message
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: { messageId: string } }
+    { params }: { params: Promise<{ messageId: string }> }
 ) {
     await dbConnect();
     const userId = getUserIdFromToken(request);
     if (!userId) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
-    const { messageId } = params;
+    const { messageId } = await params;
 
     try {
         const message = await Message.findById(messageId);
