@@ -31,6 +31,7 @@ export default function MessagesPage() {
   const [message, setMessage] = useState('');
   const wsRef = useRef<WebSocket | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const [isPartnerOnline, setIsPartnerOnline] = useState<boolean>(false);
   const [isTyping, setIsTyping] = useState<boolean>(false);
 
@@ -56,22 +57,52 @@ export default function MessagesPage() {
   };
 
   const sendMessage = async () => {
-    if (!message.trim() || !activeConversationId) return;
+    if (!message.trim() || !activeConversationId || !user) return;
+
     const partner = conversations.find(c => c._id === activeConversationId);
     const recipientId = partner ? otherParticipant(partner)?._id : undefined;
     if (!recipientId) return;
+
+    // Create optimistic message
+    const optimisticMessage: MessageItem = {
+      _id: `temp-${Date.now()}`,
+      sender: user._id,
+      recipient: recipientId,
+      content: message,
+      createdAt: new Date().toISOString()
+    };
+
+    // Add to UI immediately
+    setThread(prev => [...prev, optimisticMessage]);
+    const sentMessage = message;
+    setMessage('');
+
+    // Send to server
     const res = await fetch('/api/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ conversationId: activeConversationId, recipientId, content: message })
+      body: JSON.stringify({ conversationId: activeConversationId, recipientId, content: sentMessage })
     });
+
     if (res.ok) {
-      setMessage('');
-      await loadThread(activeConversationId);
+      const data = await res.json();
+      // Replace optimistic message with real one from server
+      setThread(prev => prev.map(m =>
+        m._id === optimisticMessage._id ? { ...data.data, _id: data.data._id } : m
+      ));
+      // Update conversations list
       await loadConversations();
+      // Broadcast via WebSocket to recipient
       try {
-        wsRef.current?.send(JSON.stringify({ type: 'message', conversationId: activeConversationId }));
+        wsRef.current?.send(JSON.stringify({
+          type: 'message',
+          conversationId: activeConversationId
+        }));
       } catch { }
+    } else {
+      // Remove optimistic message on error
+      setThread(prev => prev.filter(m => m._id !== optimisticMessage._id));
+      setMessage(sentMessage); // Restore message
     }
   };
 
@@ -89,6 +120,11 @@ export default function MessagesPage() {
       setTimeout(() => inputRef.current?.focus(), 0);
     }
   }, [activeConversationId, thread.length]);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [thread]);
 
   // Auto-open or create conversation from ?with= param
   useEffect(() => {
@@ -210,6 +246,7 @@ export default function MessagesPage() {
               {thread.length === 0 && (
                 <p className="text-center text-sm text-muted-foreground mt-10">Select a conversation to view messages.</p>
               )}
+              <div ref={messagesEndRef} />
             </CardContent>
             <div className="border-t p-3 flex items-center gap-2">
               <Textarea ref={inputRef} value={message} onChange={(e) => {
